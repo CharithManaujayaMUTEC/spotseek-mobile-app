@@ -19,8 +19,7 @@ class EventOverview {
     this.additionalStats,
   });
 
-  factory EventOverview.fromJson(Map<String, dynamic> json) =>
-      _$EventOverviewFromJson(json);
+  factory EventOverview.fromJson(Map<String, dynamic> json) => _$EventOverviewFromJson(json);
 
   Map<String, dynamic> toJson() => _$EventOverviewToJson(this);
 }
@@ -40,8 +39,7 @@ class LiveStats {
     this.breakdown,
   });
 
-  factory LiveStats.fromJson(Map<String, dynamic> json) =>
-      _$LiveStatsFromJson(json);
+  factory LiveStats.fromJson(Map<String, dynamic> json) => _$LiveStatsFromJson(json);
 
   Map<String, dynamic> toJson() => _$LiveStatsToJson(this);
 }
@@ -61,8 +59,7 @@ class FinanceSales {
     this.salesByPackage,
   });
 
-  factory FinanceSales.fromJson(Map<String, dynamic> json) =>
-      _$FinanceSalesFromJson(json);
+  factory FinanceSales.fromJson(Map<String, dynamic> json) => _$FinanceSalesFromJson(json);
 
   Map<String, dynamic> toJson() => _$FinanceSalesToJson(this);
 }
@@ -79,8 +76,7 @@ class SalesBreakdown {
     required this.revenue,
   });
 
-  factory SalesBreakdown.fromJson(Map<String, dynamic> json) =>
-      _$SalesBreakdownFromJson(json);
+  factory SalesBreakdown.fromJson(Map<String, dynamic> json) => _$SalesBreakdownFromJson(json);
 
   Map<String, dynamic> toJson() => _$SalesBreakdownToJson(this);
 }
@@ -104,8 +100,7 @@ class FinanceBreakdown {
     this.additionalCharges,
   });
 
-  factory FinanceBreakdown.fromJson(Map<String, dynamic> json) =>
-      _$FinanceBreakdownFromJson(json);
+  factory FinanceBreakdown.fromJson(Map<String, dynamic> json) => _$FinanceBreakdownFromJson(json);
 
   Map<String, dynamic> toJson() => _$FinanceBreakdownToJson(this);
 }
