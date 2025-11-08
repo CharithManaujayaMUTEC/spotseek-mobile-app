@@ -1,13 +1,11 @@
-import 'dart:math' as math;
-
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:spotseeker_app/models/analytics/analytics_models.dart';
-import 'package:spotseeker_app/models/analytics/basic_finance_response.dart';
 import 'package:spotseeker_app/models/event_model.dart';
-import 'package:spotseeker_app/services/analytics_service.dart';
-import 'package:spotseeker_app/services/auth_service.dart';
 import 'package:spotseeker_app/utils/colors.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:spotseeker_app/services/analytics_service.dart';
+import 'package:spotseeker_app/models/analytics/analytics_models.dart';
+import 'package:spotseeker_app/services/auth_service.dart';
+import 'package:spotseeker_app/mocks/partners_finance_mock.dart';
 
 class OverviewTab extends StatefulWidget {
   final EventModel event;
@@ -20,9 +18,8 @@ class OverviewTab extends StatefulWidget {
 
 class _OverviewTabState extends State<OverviewTab> {
   final AnalyticsService _analyticsService = AnalyticsService();
-
-  BasicFinanceResponse? _basicFinance;
   FinanceSales? _financeSales;
+  LiveStats? _liveStats;
   List<dynamic>? _partnersFinance;
   bool _loading = true;
   String? _error;
@@ -34,38 +31,56 @@ class _OverviewTabState extends State<OverviewTab> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _loading = true);
-
-    try {
-      await _loadPartnersFinance();
-      await _loadFinanceSales();
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
       _error = null;
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _loadPartnersFinance() async {
+    });
     try {
-      final partnerToken = await AuthService().getPartnerToken();
-      if (partnerToken != null && partnerToken.isNotEmpty) {
-        final partnersData = await _analyticsService.getPartnersFinance(partnerToken: partnerToken);
-        _partnersFinance = partnersData;
-        print('Partner Finance :  ${_partnersFinance!.toList()}');
+      // Try to fetch partners/manager-level finance if we have a partner token saved
+      try {
+        final String? partnerToken = await AuthService().getPartnerToken();
+        if (partnerToken != null && partnerToken.isNotEmpty) {
+          final List<dynamic> partnersData = await _analyticsService
+              .getPartnersFinance(partnerToken: partnerToken);
+          if (partnersData.isEmpty) {
+            // Fallback to mock if external API returned no rows
+            _partnersFinance = partnersFinanceMock;
+          } else {
+            _partnersFinance = partnersData;
+          }
+        }
+      } catch (pf) {
+        // If API fails, fallback to mock data so UI can still render.
+        _partnersFinance = partnersFinanceMock;
       }
-    } catch (_) {}
-  }
 
-  Future<void> _loadFinanceSales() async {
-    final usedFinanceId = int.tryParse(widget.event.externalEventId ?? '') ?? widget.event.id;
-    try {
-      final response =
-          await _analyticsService.getBasicFinanceResponse(usedFinanceId, event: widget.event);
-      _basicFinance = response;
-      _financeSales = response.toFinanceSales();
-    } catch (_) {}
+      // Fetch sales with fallback: try basic finance endpoint first, then event-scoped
+      final int _usedFinanceId =
+          int.tryParse(widget.event.externalEventId ?? '') ?? widget.event.id;
+      FinanceSales? sales;
+      try {
+        sales = await _analyticsService.getBasicFinance(_usedFinanceId,
+            event: widget.event);
+      } catch (e) {
+        sales = null;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _financeSales = sales;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -75,113 +90,118 @@ class _OverviewTabState extends State<OverviewTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_loading) _buildLoading(),
-          if (_error != null) _buildError(),
-          if (!_loading && _error == null) ..._buildContent(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoading() => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(
-          child: CircularProgressIndicator(color: primaryColor),
-        ),
-      );
-
-  Widget _buildError() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        children: [
-          Text(
-            'Failed to load data: $_error',
-            style: const TextStyle(color: Colors.red),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: _loadData,
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildContent(BuildContext context) {
-    return [
-      if (_partnersFinance != null) ...[
-        const SizedBox(height: 12),
-        _buildPartnersFinancePreview(),
-        const SizedBox(height: 12),
-      ],
-      _buildSectionHeader('Attendees Summary', label: 'Live Stats'),
-      const SizedBox(height: 12),
-      _buildAttendeesCard(),
-      const SizedBox(height: 24),
-      _buildSectionHeader('Ticket Sales Summary', onViewAll: () {}),
-      const SizedBox(height: 12),
-      _buildTicketSalesCard(),
-      const SizedBox(height: 24),
-      _buildSectionHeader('Booking Summary', onViewAll: () {}),
-      const SizedBox(height: 12),
-      _buildBookingChart(),
-      const SizedBox(height: 24),
-      _buildSectionHeader('Revenue Breakdown', onViewAll: () {}),
-      const SizedBox(height: 12),
-      _buildRevenueChart(),
-      const SizedBox(height: 24),
-    ];
-  }
-
-  Widget _buildPartnersFinancePreview() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF12121A).withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.deepPurple.shade200.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Manager Sales Rows: ${_partnersFinance!.length}',
-            style: const TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          GestureDetector(
-            onTap: () {
-              // For now just log details. You can expand to a full screen if needed.
-              debugPrint(
-                  'Partners finance sample: ${_partnersFinance!.isNotEmpty ? _partnersFinance![0] : {}}');
-            },
-            child: const Text(
-              'View sample',
-              style: TextStyle(color: primaryColor, fontSize: 12),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child:
+                  Center(child: CircularProgressIndicator(color: primaryColor)),
             ),
-          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                children: [
+                  Text('Failed to load data: $_error',
+                      style: const TextStyle(color: Colors.red)),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _loadData,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          if (!_loading && _error == null) ...[
+            if (_partnersFinance != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF12121A).withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: Colors.deepPurple.shade200.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Manager Sales Rows: ${_partnersFinance!.length}',
+                      style: const TextStyle(
+                          color: textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        // For now just log details. You can expand to a full screen if needed.
+                        print(
+                            'Partners finance sample: ${_partnersFinance!.isNotEmpty ? _partnersFinance![0] : {}}');
+                      },
+                      child: const Text('View sample',
+                          style: TextStyle(color: primaryColor, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Attendees Summary
+            _buildSectionHeader('Attendees Summary', label: 'Live Stats'),
+            const SizedBox(height: 12),
+            _buildAttendeesCard(),
+
+            const SizedBox(height: 24),
+
+            // Ticket Sales Summary
+            _buildSectionHeader('Ticket Sales Summary', onViewAll: () {}),
+            const SizedBox(height: 12),
+            _buildTicketSalesCard(),
+
+            const SizedBox(height: 24),
+
+            // Booking Summary
+            _buildSectionHeader('Booking Summary', onViewAll: () {}),
+            const SizedBox(height: 12),
+            _buildBookingChart(),
+
+            const SizedBox(height: 24),
+
+            // Revenue Breakdown
+            _buildSectionHeader('Revenue Breakdown', onViewAll: () {}),
+            const SizedBox(height: 12),
+            _buildRevenueChart(),
+
+            const SizedBox(height: 24),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, {VoidCallback? onViewAll, String? label}) {
+  Widget _buildSectionHeader(String title,
+      {VoidCallback? onViewAll, String? label}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
-          style: const TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: textColor,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         if (onViewAll != null)
           GestureDetector(
             onTap: onViewAll,
             child: const Text(
               'View All',
-              style: TextStyle(color: primaryColor, fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: primaryColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         if (label != null)
@@ -196,7 +216,11 @@ class _OverviewTabState extends State<OverviewTab> {
             ),
             child: Text(
               label,
-              style: const TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: textColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
       ],
@@ -204,33 +228,30 @@ class _OverviewTabState extends State<OverviewTab> {
   }
 
   Widget _buildAttendeesCard() {
-    final finance = _financeSales;
-    final basic = _basicFinance;
-
-    final soldTicketCount =
-        finance?.salesByPackage?.fold<int>(0, (sum, p) => sum + p.ticketsSold) ?? 0;
-
-    final totalAttendees = (basic?.customerCount ?? []).fold<int>(0, (sum, count) => sum + count);
-
-    final attendeesDisplay = totalAttendees > 0 ? totalAttendees : soldTicketCount;
-
-    const spotseekerInvites = 0;
-    final specialInvites =
-        (basic?.totalAccepted ?? 0) > 0 ? basic!.totalAccepted! : (basic?.totalNoResponse ?? 0);
-
+    final totalAttendees = _liveStats?.liveAttendance ?? 0;
+    final onlineTickets = _financeSales?.salesByPackage
+            ?.fold<int>(0, (sum, p) => sum + (p.ticketsSold)) ??
+        0;
+    final invites = (totalAttendees - onlineTickets) > 0
+        ? (totalAttendees - onlineTickets)
+        : 0;
+// Get the available width using MediaQuery for responsiveness
     final screenWidth = MediaQuery.of(context).size.width;
 
-    final largeSize = screenWidth * 0.45;
-    final mediumSize = screenWidth * 0.35;
-    final smallSize = screenWidth * 0.225;
-    final bubbleHeight = largeSize * 1.2;
+    // Calculate dynamic sizes and positions based on screen width
+    // Assuming a base for mobile (~320-400px), scale proportionally
+    final largeSize = screenWidth * 0.45; // ~180 for 400px width
+    final mediumSize = screenWidth * 0.35; // ~140
+    final smallSize = screenWidth * 0.225; // ~90
+    final bubbleHeight = largeSize *
+        1.2; // Dynamic height for the stack to fit bubbles without clipping
 
-    final largeLeft = screenWidth * 0.05;
-    final mediumRight = screenWidth * 0.05;
-    final mediumTop = screenWidth * 0.11;
-    final smallBottom = -screenWidth * 0.025;
-    final smallLeft = screenWidth * 0.3;
-
+    final largeLeft = screenWidth * 0.05; // Scaled from original left:20 (~5%)
+    final mediumRight = screenWidth *
+        0.05; // Changed from 0.075 to 0.05 to shift medium bubble a little to the right (decreasing 'right' moves it rightward, ~20 for 400px)
+    final mediumTop = screenWidth * 0.11; // Scaled from top:45 (~11%)
+    final smallBottom = -screenWidth * 0.025; // Scaled from bottom:-10 (~-2.5%)
+    final smallLeft = screenWidth * 0.3; // Scaled from left:120 (~30%)
     return Container(
       padding: EdgeInsets.all(screenWidth * 0.05),
       decoration: BoxDecoration(
@@ -244,54 +265,68 @@ class _OverviewTabState extends State<OverviewTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Total Attendees: $attendeesDisplay',
-            style: const TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
+            'Total Attendees: $totalAttendees',
+            style: const TextStyle(
+              color: textColor,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 20),
+          // Simplified representation - in real app use custom painter for bubbles
           SizedBox(
-            height: bubbleHeight,
-            width: double.infinity,
+            height: bubbleHeight, // Dynamic height
+            width: double.infinity, // Full width for the stack
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
+                // Large red circle (Online Tickets) - positioned left
                 Positioned(
                   left: largeLeft,
-                  top: screenWidth * 0.025,
+                  top: screenWidth * 0.025, // Scaled from top:10 (~2.5%)
                   child: _buildBubble(
-                    value: '$soldTicketCount',
+                    value: '$onlineTickets',
                     label: 'Online Tickets',
                     size: largeSize,
                     color: primaryColor,
-                    valueFontSize: largeSize * 0.144,
-                    labelFontSize: largeSize * 0.067,
-                    isStroke: false,
+                    valueFontSize:
+                        largeSize * 0.144, // Scaled from 26/180 (~0.144)
+                    labelFontSize:
+                        largeSize * 0.067, // Scaled from 12/180 (~0.067)
+                    isStroke: false, // No stroke for large circle
                   ),
                 ),
+                // Medium dark red circle (Spotseeker Invites) - positioned right
                 Positioned(
                   right: mediumRight,
                   top: mediumTop,
                   child: _buildBubble(
-                    value: '$spotseekerInvites',
+                    value: '$invites',
                     label: 'Spotseeker Invites',
                     size: mediumSize,
                     color: const Color(0xFF840812),
-                    valueFontSize: mediumSize * 0.171,
-                    labelFontSize: mediumSize * 0.079,
-                    isStroke: true,
+                    valueFontSize:
+                        mediumSize * 0.171, // Scaled from 24/140 (~0.171)
+                    labelFontSize:
+                        mediumSize * 0.079, // Scaled from 11/140 (~0.079)
+                    isStroke: true, // Add stroke for medium circle
                   ),
                 ),
+                // Small darkest circle (Special Invites) - positioned bottom center
                 Positioned(
                   bottom: smallBottom,
                   left: smallLeft,
                   child: _buildBubble(
-                    value: '$specialInvites',
+                    value: '0',
                     label: 'Special\nInvites',
                     size: smallSize,
                     color: const Color(0xFF500812),
-                    valueFontSize: smallSize * 0.244,
-                    labelFontSize: smallSize * 0.111,
-                    isStroke: true,
+                    valueFontSize:
+                        smallSize * 0.244, // Scaled from 22/90 (~0.244)
+                    labelFontSize:
+                        smallSize * 0.111, // Scaled from 10/90 (~0.111)
+                    isStroke: true, // Add stroke for small circle
                   ),
                 ),
               ],
@@ -309,7 +344,8 @@ class _OverviewTabState extends State<OverviewTab> {
     required Color color,
     required double valueFontSize,
     required double labelFontSize,
-    bool isStroke = false,
+    bool isStroke =
+        false, // New boolean parameter to control if stroke (border) is added, default false
   }) {
     return Container(
       width: size,
@@ -317,7 +353,9 @@ class _OverviewTabState extends State<OverviewTab> {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: isStroke ? Border.all(color: const Color(0xFF1F0818), width: 4.0) : null,
+        border: isStroke
+            ? Border.all(color: const Color(0xFF1F0818), width: 4.0)
+            : null, // Conditionally add border (stroke) with color #1F0818 and width 2 if isStroke is true
       ),
       child: Center(
         child: RichText(
@@ -327,18 +365,20 @@ class _OverviewTabState extends State<OverviewTab> {
               TextSpan(
                 text: value,
                 style: TextStyle(
-                    color: Colors.white,
-                    fontSize: valueFontSize,
-                    fontWeight: FontWeight.bold,
-                    height: 1.2),
+                  color: Colors.white,
+                  fontSize: valueFontSize,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                ),
               ),
               TextSpan(
                 text: '\n$label',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontSize: labelFontSize,
-                    fontWeight: FontWeight.w500,
-                    height: 1.3),
+                  color: Colors.white,
+                  fontSize: labelFontSize,
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
+                ),
               ),
             ],
           ),
@@ -348,40 +388,11 @@ class _OverviewTabState extends State<OverviewTab> {
   }
 
   Widget _buildTicketSalesCard() {
-    final totalSales = _basicFinance?.totalSales ?? _financeSales?.totalSales ?? 0.0;
-    int soldTickets = 0;
-    if (_basicFinance != null) {
-      soldTickets = _basicFinance!.packages.fold<int>(0, (sum, pkg) => sum + pkg.ticketsSold);
-    } else if (_financeSales?.salesByPackage != null) {
-      soldTickets =
-          _financeSales!.salesByPackage!.fold<int>(0, (sum, pkg) => sum + pkg.ticketsSold);
-    }
-    int totalTicketCount = 0;
-    if (_basicFinance != null) {
-      totalTicketCount = _basicFinance!.event.ticketSalesSumTotalTicketCount ?? 0;
-      if (totalTicketCount == 0) {
-        totalTicketCount = _basicFinance!.ticketPackages.fold<int>(
-          0,
-          (sum, pkg) => sum + (pkg.totalTickets ?? 0),
-        );
-      }
-    }
-    if (totalTicketCount == 0 && widget.event.ticketPackages.isNotEmpty) {
-      totalTicketCount = widget.event.ticketPackages.length;
-    }
-    if (totalTicketCount == 0 && soldTickets > 0) {
-      totalTicketCount = soldTickets;
-    }
-
-    final soldRatio = totalTicketCount > 0 ? soldTickets / totalTicketCount : 0.0;
-    final soldPercent = (soldRatio * 100).clamp(0, 100).round();
-    final filledFlex = math.max(
-      0,
-      (soldRatio * 1000).round(),
-    );
-    final emptyFlex = filledFlex >= 1000 ? 0 : 1000 - filledFlex;
-
-    final currency = _basicFinance?.event.currency ?? widget.event.currency;
+    final totalSales = _financeSales?.totalSales ?? 0.0;
+    final soldTickets = _financeSales?.salesByPackage
+            ?.fold<int>(0, (s, p) => s + p.ticketsSold) ??
+        0;
+    final currency = widget.event.currency;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -416,38 +427,42 @@ class _OverviewTabState extends State<OverviewTab> {
             ],
           ),
           const SizedBox(height: 16),
-
-          // Progress bar (static 98% as per original)
-          Row(children: [
-            Expanded(
-              flex: filledFlex,
-              child: Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  gradient:
-                      LinearGradient(colors: [primaryColor, primaryColor.withValues(alpha: 0.6)]),
-                  borderRadius: BorderRadius.circular(4),
+          // Progress bar
+          Row(
+            children: [
+              Expanded(
+                flex: 98,
+                child: Container(
+                  height: 8,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        primaryColor,
+                        primaryColor.withValues(alpha: 0.6)
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              flex: emptyFlex,
-              child: Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  color: hintTextColor.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(4),
+              Expanded(
+                flex: 2,
+                child: Container(
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: hintTextColor.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
-            ),
-          ]),
-
+            ],
+          ),
           const SizedBox(height: 8),
-          Align(
+          const Align(
             alignment: Alignment.centerRight,
             child: Text(
-              '$soldPercent%',
-              style: const TextStyle(
+              '98%',
+              style: TextStyle(
                 color: textColor,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -460,35 +475,6 @@ class _OverviewTabState extends State<OverviewTab> {
   }
 
   Widget _buildBookingChart() {
-    final counts = <double>[];
-    if (_basicFinance != null) {
-      counts.addAll(
-        _basicFinance!.packages.map(
-          (pkg) => pkg.ticketsSold.toDouble(),
-        ),
-      );
-    } else if (_financeSales?.salesByPackage != null) {
-      counts.addAll(
-        _financeSales!.salesByPackage!.map(
-          (pkg) => pkg.ticketsSold.toDouble(),
-        ),
-      );
-    }
-    final trimmedCounts = counts.take(6).toList();
-    while (trimmedCounts.length < 6) {
-      trimmedCounts.add(0.0);
-    }
-
-    final totalSold = trimmedCounts.fold<int>(
-      0,
-      (sum, value) => sum + value.toInt(),
-    );
-    final maxTickets = trimmedCounts.fold<double>(
-      0.0,
-      (maxValue, value) => math.max(maxValue, value),
-    );
-    final maxY = maxTickets > 0 ? maxTickets * 1.2 : 1.0;
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -502,8 +488,12 @@ class _OverviewTabState extends State<OverviewTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$totalSold tickets sold',
-            style: const TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.bold),
+            '${_financeSales?.salesByPackage?.fold<int>(0, (s, p) => s + p.ticketsSold) ?? 0} tickets sold',
+            style: TextStyle(
+              color: textColor,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -511,20 +501,22 @@ class _OverviewTabState extends State<OverviewTab> {
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: maxY,
+                maxY: 250,
                 barTouchData: BarTouchData(enabled: false),
                 titlesData: FlTitlesData(
                   show: true,
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      getTitlesWidget: (value, meta) => Text(
-                        _basicFinance!.packages[value.toInt()].name,
-                        style: TextStyle(
-                          color: hintTextColor.withValues(alpha: 0.8),
-                          fontSize: 11,
-                        ),
-                      ),
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          'Tier ${value.toInt() + 1}',
+                          style: TextStyle(
+                            color: hintTextColor.withValues(alpha: 0.8),
+                            fontSize: 11,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   leftTitles: const AxisTitles(
@@ -539,10 +531,20 @@ class _OverviewTabState extends State<OverviewTab> {
                 ),
                 gridData: const FlGridData(show: false),
                 borderData: FlBorderData(show: false),
-                barGroups: List.generate(
-                  _basicFinance!.packages.length,
-                  (i) => _makeBarGroup(i, trimmedCounts[i], primaryColor),
-                ),
+                barGroups: () {
+                  final counts = (_financeSales?.salesByPackage ?? [])
+                      .map<double>((p) => p.ticketsSold.toDouble())
+                      .toList();
+                  while (counts.length < 6) counts.add(0.0);
+                  return [
+                    _makeBarGroup(0, counts[0], primaryColor),
+                    _makeBarGroup(1, counts[1], primaryColor),
+                    _makeBarGroup(2, counts[2], primaryColor),
+                    _makeBarGroup(3, counts[3], primaryColor),
+                    _makeBarGroup(4, counts[4], primaryColor),
+                    _makeBarGroup(5, counts[5], primaryColor),
+                  ];
+                }(),
               ),
             ),
           ),
@@ -559,30 +561,13 @@ class _OverviewTabState extends State<OverviewTab> {
           toY: y,
           color: color,
           width: 30,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(4),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
         ),
       ],
     );
   }
 
   Widget _buildRevenueChart() {
-    final revenue =
-        _financeSales?.netRevenue ?? _financeSales?.totalSales ?? _basicFinance?.totalSales ?? 0.0;
-    final currency = _basicFinance?.event.currency ?? widget.event.currency;
-
-    final revenueBars = _basicFinance!.packages.map((entry) => entry.revenue / 1000).toList();
-    while (revenueBars.length < 5) {
-      revenueBars.add(0.0);
-    }
-
-    final maxRevenueBar = revenueBars.fold<double>(
-      0.0,
-      (currentMax, value) => math.max(currentMax, value),
-    );
-    final maxY = maxRevenueBar > 0 ? maxRevenueBar * 1.2 : 1.0;
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -597,12 +582,19 @@ class _OverviewTabState extends State<OverviewTab> {
         children: [
           const Text(
             'Total Revenue',
-            style: TextStyle(color: hintTextColor, fontSize: 13),
+            style: TextStyle(
+              color: hintTextColor,
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            '$currency ${revenue.toStringAsFixed(2)}',
-            style: const TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+            '${widget.event.currency} ${((_financeSales?.netRevenue ?? _financeSales?.totalSales) ?? 0.0).toStringAsFixed(2)}',
+            style: const TextStyle(
+              color: textColor,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -610,27 +602,37 @@ class _OverviewTabState extends State<OverviewTab> {
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: maxY,
+                maxY: 1.0,
                 barTouchData: BarTouchData(enabled: false),
                 titlesData: FlTitlesData(
                   show: true,
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      getTitlesWidget: (value, meta) => Text(
-                        _basicFinance!.packages[value.toInt()].name,
-                        style: TextStyle(color: hintTextColor.withValues(alpha: 0.8), fontSize: 11),
-                      ),
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          'Week ${value.toInt() + 1}',
+                          style: TextStyle(
+                            color: hintTextColor.withValues(alpha: 0.8),
+                            fontSize: 11,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 40,
-                      getTitlesWidget: (value, meta) => Text(
-                        '${value.toInt()}k',
-                        style: TextStyle(color: hintTextColor.withValues(alpha: 0.8), fontSize: 11),
-                      ),
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          '${value.toInt()}k',
+                          style: TextStyle(
+                            color: hintTextColor.withValues(alpha: 0.8),
+                            fontSize: 11,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   topTitles: const AxisTitles(
@@ -643,15 +645,22 @@ class _OverviewTabState extends State<OverviewTab> {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  horizontalInterval: maxY / 4,
-                  getDrawingHorizontalLine: (value) =>
-                      FlLine(color: hintTextColor.withValues(alpha: 0.1), strokeWidth: 1),
+                  horizontalInterval: 30,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: hintTextColor.withValues(alpha: 0.1),
+                      strokeWidth: 1,
+                    );
+                  },
                 ),
                 borderData: FlBorderData(show: false),
-                barGroups: List.generate(
-                  _basicFinance!.packages.length,
-                  (i) => _makeBarGroup(i, revenueBars[i], primaryColor),
-                ),
+                barGroups: [
+                  _makeBarGroup(0, 0.0, primaryColor),
+                  _makeBarGroup(1, 0.0, primaryColor),
+                  _makeBarGroup(2, 0.0, primaryColor),
+                  _makeBarGroup(3, 0.0, primaryColor),
+                  _makeBarGroup(4, 0.0, primaryColor),
+                ],
               ),
             ),
           ),

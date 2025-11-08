@@ -1,12 +1,11 @@
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:spotseeker_app/core/api/api_exception.dart';
 import 'package:spotseeker_app/core/constants/api_constants.dart';
-import 'package:spotseeker_app/core/storage/secure_storage.dart';
-import 'package:spotseeker_app/mocks/partners_finance_mock.dart';
 import 'package:spotseeker_app/models/analytics/analytics_models.dart';
-import 'package:spotseeker_app/models/analytics/basic_finance_response.dart';
 import 'package:spotseeker_app/models/event_model.dart';
+import 'package:spotseeker_app/core/storage/secure_storage.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:spotseeker_app/mocks/partners_finance_mock.dart';
 
 /// Analytics Service
 class AnalyticsService {
@@ -81,7 +80,8 @@ class AnalyticsService {
   }
 
   /// Get Event Overview derived from basicFinance payload
-  Future<EventOverview> getEventOverview(int eventId, {EventModel? event}) async {
+  Future<EventOverview> getEventOverview(int eventId,
+      {EventModel? event}) async {
     try {
       // Prefer external_event_id for partner events
       final int idToUse = event?.externalEventId != null
@@ -113,7 +113,9 @@ class AnalyticsService {
             final sum = pkgs
                 .whereType<Map<String, dynamic>>()
                 .map((p) => p['sold_ticket_counts'])
-                .map((v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '0') ?? 0)
+                .map((v) => v is num
+                    ? v.toInt()
+                    : int.tryParse(v?.toString() ?? '0') ?? 0)
                 .fold<int>(0, (a, b) => a + b);
             if (sum > 0) return sum;
           }
@@ -129,7 +131,9 @@ class AnalyticsService {
             return pkgs
                 .whereType<Map<String, dynamic>>()
                 .map((p) => p['tot_tickets'])
-                .map((v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '0') ?? 0)
+                .map((v) => v is num
+                    ? v.toInt()
+                    : int.tryParse(v?.toString() ?? '0') ?? 0)
                 .fold<int>(0, (a, b) => a + b);
           }
           return 0;
@@ -151,7 +155,8 @@ class AnalyticsService {
             return ts
                 .whereType<Map<String, dynamic>>()
                 .where((m) =>
-                    (m['comment']?.toString().toLowerCase() ?? '').contains('invitation') ||
+                    (m['comment']?.toString().toLowerCase() ?? '')
+                        .contains('invitation') ||
                     ((m['tot_amount'] is num) && (m['tot_amount'] as num) == 0))
                 .length;
           }
@@ -172,7 +177,8 @@ class AnalyticsService {
             ..sort((a, b) => a.key.compareTo(b.key));
           final values = entries.map((e) => e.value).toList();
           for (int i = 0; i < 5; i++) {
-            additionalStats['week${i + 1}Revenue'] = (i < values.length) ? values[i] : 0.0;
+            additionalStats['week${i + 1}Revenue'] =
+                (i < values.length) ? values[i] : 0.0;
           }
         } else {
           for (int i = 1; i <= 5; i++) {
@@ -185,7 +191,8 @@ class AnalyticsService {
         List<int> ticketCounts = [];
         if (tcb is Map) {
           ticketCounts = tcb.values
-              .map((v) => v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0)
+              .map(
+                  (v) => v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0)
               .toList();
         } else {
           final spd = data['tickets_count_by_package_and_date'];
@@ -193,7 +200,8 @@ class AnalyticsService {
             final totalsPerDay = spd.values.map((pkgMap) {
               if (pkgMap is Map) {
                 return pkgMap.values
-                    .map((v) => v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0)
+                    .map((v) =>
+                        v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0)
                     .fold<int>(0, (a, b) => a + b);
               }
               return 0;
@@ -211,7 +219,8 @@ class AnalyticsService {
           'spotseekerInvites': invites,
           'specialInvites': 0,
         };
-        final double completion = (totalCapacity > 0) ? (ticketsSold / totalCapacity) : 0.0;
+        final double completion =
+            (totalCapacity > 0) ? (ticketsSold / totalCapacity) : 0.0;
         additionalStats['salesSummary'] = {
           'ticketsSold': ticketsSold,
           'completionPercentage': completion,
@@ -221,7 +230,9 @@ class AnalyticsService {
           totalTicketsSold: ticketsSold,
           totalRevenue: totalSales,
           totalCheckIns: totalCheckIns,
-          remainingTickets: (totalCapacity - ticketsSold) > 0 ? (totalCapacity - ticketsSold) : 0,
+          remainingTickets: (totalCapacity - ticketsSold) > 0
+              ? (totalCapacity - ticketsSold)
+              : 0,
           additionalStats: additionalStats,
         );
       }
@@ -311,18 +322,6 @@ class AnalyticsService {
   /// Get Basic Finance (alternate endpoint `/api/finance/{id}`)
   Future<FinanceSales> getBasicFinance(int eventId, {EventModel? event}) async {
     try {
-      final response = await getBasicFinanceResponse(eventId, event: event);
-      return response.toFinanceSales();
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      throw ApiException.unknown();
-    }
-  }
-
-  /// Returns the full finance payload mapped to [BasicFinanceResponse].
-  Future<BasicFinanceResponse> getBasicFinanceResponse(int eventId,
-      {EventModel? event}) async {
-    try {
       final int idToUse = event?.externalEventId != null
           ? int.tryParse(event!.externalEventId!.toString()) ?? eventId
           : eventId;
@@ -331,37 +330,7 @@ class AnalyticsService {
         endpoint: ApiConstants.basicFinance(idToUse),
       );
 
-      final data = response.data;
-
-      Map<String, dynamic>? financeMap;
-      if (data is Map<String, dynamic>) {
-        financeMap = data;
-      } else if (data is Map) {
-        financeMap = Map<String, dynamic>.from(data);
-      }
-
-      if (financeMap != null) {
-        final Map<String, dynamic> payload;
-        if (financeMap.containsKey('data') && financeMap['data'] is Map) {
-          payload = Map<String, dynamic>.from(financeMap['data'] as Map);
-        } else {
-          payload = financeMap;
-        }
-
-        return BasicFinanceResponse.fromJson(payload);
-      }
-
-      if (response.data is Map<String, dynamic>) {
-        return BasicFinanceResponse.fromJson(response.data as Map<String, dynamic>);
-      }
-
-      if (response.data is Map) {
-        return BasicFinanceResponse.fromJson(
-          Map<String, dynamic>.from(response.data as Map),
-        );
-      }
-
-      return BasicFinanceResponse.fromJson(<String, dynamic>{});
+      return FinanceSales.fromJson(response.data);
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException.unknown();
@@ -380,7 +349,8 @@ class AnalyticsService {
     }
     try {
       // Use legacy web API if we have a partner token, otherwise use mobile API
-      final token = partnerToken ?? await _storage.read(ApiConstants.legacyWebAuthTokenKey);
+      final token = partnerToken ??
+          await _storage.read(ApiConstants.legacyWebAuthTokenKey);
       final baseUrl = (token != null && token.isNotEmpty)
           ? ApiConstants.legacyWebApiBaseUrl
           : ApiConstants.mobileApiBaseUrl;
@@ -392,7 +362,8 @@ class AnalyticsService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
           },
         ),
       );
@@ -414,7 +385,8 @@ class AnalyticsService {
   }
 
   /// Get Finance Breakdown
-  Future<FinanceBreakdown> getFinanceBreakdown(int eventId, {EventModel? event}) async {
+  Future<FinanceBreakdown> getFinanceBreakdown(int eventId,
+      {EventModel? event}) async {
     try {
       final response = await _makeRequest(
         endpoint: ApiConstants.eventFinanceBreakdown(eventId),
@@ -450,7 +422,8 @@ class AnalyticsService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
           },
         ),
       );
@@ -461,7 +434,8 @@ class AnalyticsService {
   }
 
   /// Minimal raw finance shape expected by FinanceTab
-  Future<Map<String, dynamic>> getFinanceSalesRaw(int eventId, {EventModel? event}) async {
+  Future<Map<String, dynamic>> getFinanceSalesRaw(int eventId,
+      {EventModel? event}) async {
     try {
       final sales = await getBasicFinance(eventId, event: event);
       final double total = sales.totalSales;
@@ -510,7 +484,8 @@ class AnalyticsService {
   }
 
   /// Raw finance breakdown for FinanceTab (safe Map)
-  Future<Map<String, dynamic>> getFinanceBreakdownRaw(int eventId, {EventModel? event}) async {
+  Future<Map<String, dynamic>> getFinanceBreakdownRaw(int eventId,
+      {EventModel? event}) async {
     try {
       // Prefer external_event_id
       final int idToUse = event?.externalEventId != null
@@ -557,7 +532,8 @@ class AnalyticsService {
   }
 
   /// Raw basic finance payload (includes ticket_packages)
-  Future<Map<String, dynamic>> getBasicFinanceRaw(int eventId, {EventModel? event}) async {
+  Future<Map<String, dynamic>> getBasicFinanceRaw(int eventId,
+      {EventModel? event}) async {
     try {
       final int idToUse = event?.externalEventId != null
           ? int.tryParse(event!.externalEventId!.toString()) ?? eventId
@@ -586,7 +562,8 @@ class AnalyticsService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
           },
         ),
       );
@@ -618,7 +595,8 @@ class AnalyticsService {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
             },
           ),
         );
@@ -631,7 +609,8 @@ class AnalyticsService {
               headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+                if (token != null && token.isNotEmpty)
+                  'Authorization': 'Bearer $token',
               },
             ),
           );

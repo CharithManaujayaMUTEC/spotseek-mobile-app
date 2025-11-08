@@ -1,14 +1,12 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
-import 'package:spotseeker_app/models/analytics/basic_finance_response.dart';
 import 'package:spotseeker_app/models/event_model.dart';
+import 'package:spotseeker_app/utils/colors.dart';
+import 'package:spotseeker_app/services/analytics_service.dart';
+import 'package:spotseeker_app/widgets/custom_textfield.dart';
 import 'package:spotseeker_app/screens/events/finance_tabs/bank_details_screen.dart';
 import 'package:spotseeker_app/screens/events/finance_tabs/fund_withdrawal.dart';
-import 'package:spotseeker_app/services/analytics_service.dart';
+import 'dart:math';
 import 'package:spotseeker_app/services/finance_service.dart';
-import 'package:spotseeker_app/utils/colors.dart';
-import 'package:spotseeker_app/widgets/custom_textfield.dart';
 
 class FinanceTab extends StatefulWidget {
   final EventModel event;
@@ -20,38 +18,8 @@ class FinanceTab extends StatefulWidget {
 }
 
 class _FinanceTabState extends State<FinanceTab> {
-  bool loading = false;
   int _selectedSubTab = 0;
   bool _showFundWithdrawalInFinanceBreakdown = false;
-  final AnalyticsService _analyticsService = AnalyticsService();
-
-  BasicFinanceResponse? _basicFinance;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    setState(() => loading = true);
-
-    try {
-      await _loadFinanceSales();
-    } catch (e) {
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
-  }
-
-  Future<void> _loadFinanceSales() async {
-    final usedFinanceId = int.tryParse(widget.event.externalEventId ?? '') ?? widget.event.id;
-    try {
-      final response =
-          await _analyticsService.getBasicFinanceResponse(usedFinanceId, event: widget.event);
-      _basicFinance = response;
-    } catch (_) {}
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,12 +48,7 @@ class _FinanceTabState extends State<FinanceTab> {
           child: IndexedStack(
             index: _selectedSubTab,
             children: [
-              _SalesSubTab(
-                event: widget.event,
-                finance: _basicFinance,
-                isLoading: loading,
-                onRefresh: _loadFinanceSales,
-              ),
+              _SalesSubTab(event: widget.event),
               _showFundWithdrawalInFinanceBreakdown
                   ? const FundWithdrawalScreen()
                   : _FinanceBreakdownSubTab(
@@ -134,17 +97,7 @@ class _FinanceTabState extends State<FinanceTab> {
 // ============ SALES SUB-TAB ============
 class _SalesSubTab extends StatefulWidget {
   final EventModel event;
-  final BasicFinanceResponse? finance;
-  final bool isLoading;
-  final Future<void> Function() onRefresh;
-
-  const _SalesSubTab({
-    required this.event,
-    required this.finance,
-    required this.isLoading,
-    required this.onRefresh,
-  });
-
+  const _SalesSubTab({required this.event});
   @override
   State<_SalesSubTab> createState() => _SalesSubTabState();
 }
@@ -155,98 +108,76 @@ class _SalesSubTabState extends State<_SalesSubTab> {
   DateTime? _endDate;
   bool _showDropdown = false;
   bool _isSelectingStartDate = true;
-  bool _loading = false;
+  bool _loading = true;
   double _totalRevenue = 0.0;
   List<Map<String, dynamic>> _packageDetails = [];
+  List<Map<String, dynamic>> _salesByPackage = [];
   List<(double, String, String)> _segments = const [];
-  BasicFinanceResponse? _basicFinance;
 
   @override
   void initState() {
     super.initState();
-    _loading = widget.isLoading;
-    _hydrateFromFinance(widget.finance);
+    _fetchSales();
   }
 
-  @override
-  void didUpdateWidget(covariant _SalesSubTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!identical(widget.finance, oldWidget.finance)) {
-      _hydrateFromFinance(widget.finance);
-    }
-    if (widget.isLoading != oldWidget.isLoading) {
+  Future<void> _fetchSales() async {
+    try {
+      final raw = await AnalyticsService()
+          .getFinanceSalesRaw(widget.event.id, event: widget.event);
+      final totalRevenue = (raw['totalRevenue'] is num)
+          ? (raw['totalRevenue'] as num).toDouble()
+          : double.tryParse(raw['totalRevenue']?.toString() ?? '0') ?? 0.0;
+      final salesByPackage = (raw['salesByPackage'] as List<dynamic>? ?? [])
+          .map<Map<String, dynamic>>((e) => {
+                'packageName': e['packageName']?.toString() ?? '-',
+                'revenue': (e['revenue'] is num)
+                    ? (e['revenue'] as num).toDouble()
+                    : double.tryParse(e['revenue']?.toString() ?? '0') ?? 0.0,
+                'percentage': (e['percentage'] is num)
+                    ? (e['percentage'] as num).toDouble()
+                    : double.tryParse(e['percentage']?.toString() ?? '0') ??
+                        0.0,
+              })
+          .toList();
+      // Derive package cards; missing fields default to 0
+      final packageDetails = salesByPackage
+          .map<Map<String, dynamic>>((e) => {
+                'packageId': '',
+                'packageName': e['packageName']?.toString() ?? '-',
+                'totalRevenue': (e['revenue'] as double),
+                'ticketsSold': 0,
+                'totalTickets': 0,
+                'ticketPrice': 0.0,
+                'startDate': null,
+                'endDate': null,
+                'countdown': null,
+              })
+          .toList();
+      final segments = salesByPackage
+          .map<(double, String, String)>((e) => (
+                ((e['percentage'] as double) / 100.0).clamp(0.0, 1.0),
+                '${(e['percentage'] as double).toStringAsFixed(0)}%',
+                e['packageName']?.toString() ?? '-',
+              ))
+          .toList();
+      if (!mounted) return;
       setState(() {
-        _loading = widget.isLoading;
+        _totalRevenue = totalRevenue;
+        _salesByPackage = salesByPackage;
+        _packageDetails = packageDetails;
+        _segments = segments;
+        _loading = false;
       });
-    }
-  }
-
-  void _hydrateFromFinance(BasicFinanceResponse? finance) {
-    _basicFinance = finance;
-    if (finance == null) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _totalRevenue = 0.0;
+        _salesByPackage = [];
         _packageDetails = [];
         _segments = const [];
-        _loading = widget.isLoading;
+        _loading = false;
       });
-      return;
     }
-
-    final packages = finance.packages;
-    final totalRevenue = finance.totalSales;
-    final totalRevenueForPercentages = packages.fold<double>(0.0, (sum, pkg) => sum + pkg.revenue);
-
-    final packageDetails = packages.map<Map<String, dynamic>>((pkg) {
-      final ticketPackage = _resolveTicketPackage(finance, pkg);
-      final totalTickets = ticketPackage?.totalTickets ?? pkg.ticketsSold;
-      final ticketPrice =
-          ticketPackage?.price ?? (pkg.ticketsSold > 0 ? pkg.revenue / pkg.ticketsSold : 0.0);
-
-      return {
-        'packageName': pkg.name,
-        'totalRevenue': pkg.revenue,
-        'ticketsSold': pkg.ticketsSold,
-        'totalTickets': totalTickets,
-        'ticketPrice': ticketPrice,
-        'startDate': ticketPackage?.startDateTime,
-        'endDate': ticketPackage?.endDateTime,
-        'countdown': null,
-      };
-    }).toList();
-
-    final segments = packages.map<(double, String, String)>((pkg) {
-      final proportion = totalRevenueForPercentages > 0
-          ? (pkg.revenue / totalRevenueForPercentages).clamp(0.0, 1.0)
-          : 0.0;
-      final percentageLabel = '${(proportion * 100).round()}%';
-      return (proportion, percentageLabel, pkg.name);
-    }).toList();
-
-    setState(() {
-      _totalRevenue = totalRevenue;
-      _packageDetails = packageDetails;
-      _segments = segments;
-      _loading = widget.isLoading;
-    });
-  }
-
-  BasicFinanceTicketPackage? _resolveTicketPackage(
-    BasicFinanceResponse finance,
-    BasicFinancePackage pkg,
-  ) {
-    if (pkg.source != null) return pkg.source;
-    if (pkg.id != null) {
-      for (final ticket in finance.ticketPackages) {
-        if (ticket.id == pkg.id) return ticket;
-      }
-    }
-    for (final ticket in finance.ticketPackages) {
-      if (ticket.name != null && ticket.name!.toLowerCase() == pkg.name.toLowerCase()) {
-        return ticket;
-      }
-    }
-    return null;
   }
 
   String _getMonthName(int month) {
@@ -284,7 +215,9 @@ class _SalesSubTabState extends State<_SalesSubTab> {
       initialDate: _isSelectingStartDate
           ? (_startDate ?? DateTime.now())
           : (_endDate ?? _startDate ?? DateTime.now()),
-      firstDate: _isSelectingStartDate ? DateTime(2020) : (_startDate ?? DateTime(2020)),
+      firstDate: _isSelectingStartDate
+          ? DateTime(2020)
+          : (_startDate ?? DateTime(2020)),
       lastDate: DateTime(2100),
       builder: (context, child) {
         return Theme(
@@ -327,8 +260,6 @@ class _SalesSubTabState extends State<_SalesSubTab> {
 
   @override
   Widget build(BuildContext context) {
-    final currency = widget.finance?.event.currency ?? widget.event.currency;
-
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -337,7 +268,9 @@ class _SalesSubTabState extends State<_SalesSubTab> {
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator(color: hintTextColor, strokeWidth: 2)),
+              child: Center(
+                  child: CircularProgressIndicator(
+                      color: hintTextColor, strokeWidth: 2)),
             ),
           const SizedBox(height: 20),
 
@@ -348,106 +281,99 @@ class _SalesSubTabState extends State<_SalesSubTab> {
             decoration: BoxDecoration(
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+              border: Border.all(
+                  color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
             ),
             child: Column(
               children: [
                 // ==== COMBINED FILTERS ====
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _showDropdown = !_showDropdown),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.deepPurple.shade300.withValues(alpha: 0.4),
+                    // Today dropdown
+                    GestureDetector(
+                      onTap: () =>
+                          setState(() => _showDropdown = !_showDropdown),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: Colors.deepPurple.shade300
+                                  .withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_selectedFilter,
+                                style: const TextStyle(
+                                    color: textColor, fontSize: 13)),
+                            const SizedBox(width: 8),
+                            Icon(
+                              _showDropdown
+                                  ? Icons.keyboard_arrow_up
+                                  : Icons.keyboard_arrow_down,
+                              color: textColor,
+                              size: 18,
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _selectedFilter,
-                                style: const TextStyle(color: textColor, fontSize: 13),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                _showDropdown ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                color: textColor,
-                                size: 18,
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _isSelectingStartDate = true;
-                          });
-                          _selectDateRange(context);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.deepPurple.shade300.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.calendar_today, color: textColor, size: 14),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _getDateRangeText(),
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: (_startDate != null || _endDate != null)
-                                        ? textColor
-                                        : hintTextColor,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              if (_startDate != null || _endDate != null)
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _startDate = null;
-                                      _endDate = null;
-                                      _isSelectingStartDate = true;
-                                    });
-                                  },
-                                  child: const Icon(Icons.clear, color: hintTextColor, size: 16),
-                                )
-                              else
-                                const Icon(Icons.keyboard_arrow_down, color: textColor, size: 18),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () async {
-                        if (mounted) {
-                          setState(() => _loading = true);
-                        }
-                        await widget.onRefresh();
+                    // Combined date range picker
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isSelectingStartDate = true;
+                        });
+                        _selectDateRange(context);
                       },
-                      icon: const Icon(Icons.refresh, color: textColor),
-                      tooltip: 'Refresh sales',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: Colors.deepPurple.shade300
+                                  .withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.calendar_today,
+                                color: textColor, size: 14),
+                            const SizedBox(width: 8),
+                            Text(
+                              _getDateRangeText(),
+                              style: TextStyle(
+                                color: (_startDate != null || _endDate != null)
+                                    ? textColor
+                                    : hintTextColor,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (_startDate != null || _endDate != null)
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _startDate = null;
+                                    _endDate = null;
+                                    _isSelectingStartDate = true;
+                                  });
+                                },
+                                child: const Icon(Icons.clear,
+                                    color: hintTextColor, size: 16),
+                              )
+                            else
+                              const Icon(Icons.keyboard_arrow_down,
+                                  color: textColor, size: 18),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -460,7 +386,9 @@ class _SalesSubTabState extends State<_SalesSubTab> {
                     decoration: BoxDecoration(
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+                      border: Border.all(
+                          color: Colors.deepPurple.shade300
+                              .withValues(alpha: 0.4)),
                     ),
                     child: Column(
                       children: [
@@ -476,12 +404,15 @@ class _SalesSubTabState extends State<_SalesSubTab> {
                                   _showDropdown = false;
                                 }),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10, horizontal: 12),
                                   child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(e,
-                                          style: const TextStyle(color: textColor, fontSize: 13)),
+                                          style: const TextStyle(
+                                              color: textColor, fontSize: 13)),
                                     ],
                                   ),
                                 ),
@@ -506,15 +437,18 @@ class _SalesSubTabState extends State<_SalesSubTab> {
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
-                            'Total Sales Revenue',
-                            style: TextStyle(color: hintTextColor, fontSize: 12),
-                          ),
-                          const SizedBox(height: 4),
                           Text(
-                            '$currency ${(_basicFinance?.totalSales ?? _totalRevenue).toStringAsFixed(2)}',
+                            'Total Sales Revenue',
                             style: const TextStyle(
-                                color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+                                color: hintTextColor, fontSize: 12),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Rs. ${_totalRevenue.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                color: textColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -530,7 +464,8 @@ class _SalesSubTabState extends State<_SalesSubTab> {
 
           // Package Wise Sales (unchanged)
           const Text('Package Wise Sales',
-              style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           ..._packageDetails.expand((p) {
             final ticketsSold = p['ticketsSold'] as int;
@@ -540,10 +475,12 @@ class _SalesSubTabState extends State<_SalesSubTab> {
             return [
               _buildPackageCard(
                 tier: p['packageName']?.toString() ?? '-',
-                price: '$currency ${(p['totalRevenue'] as double).toStringAsFixed(2)}',
+                price:
+                    'Rs. ${(p['totalRevenue'] as double).toStringAsFixed(2)}',
                 soldOut: soldOutText,
                 soldOutColor: soldColor,
-                ticketPrice: '$currency ${(p['ticketPrice'] as double).toStringAsFixed(2)}',
+                ticketPrice:
+                    'Rs. ${(p['ticketPrice'] as double).toStringAsFixed(2)}',
                 releaseCount: totalTickets.toString(),
                 startDate: p['startDate']?.toString() ?? '-',
                 endDate: p['endDate']?.toString() ?? '-',
@@ -574,7 +511,8 @@ class _SalesSubTabState extends State<_SalesSubTab> {
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+        border: Border.all(
+            color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,7 +525,8 @@ class _SalesSubTabState extends State<_SalesSubTab> {
                   color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.confirmation_number, color: textColor, size: 20),
+                child: const Icon(Icons.confirmation_number,
+                    color: textColor, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -596,21 +535,27 @@ class _SalesSubTabState extends State<_SalesSubTab> {
                   children: [
                     Text(tier,
                         style: const TextStyle(
-                            color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
+                            color: textColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold)),
                     const SizedBox(height: 2),
-                    Text(price, style: const TextStyle(color: textColor, fontSize: 13)),
+                    Text(price,
+                        style: const TextStyle(color: textColor, fontSize: 13)),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   border: Border.all(color: soldOutColor),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(soldOut,
-                    style:
-                        TextStyle(color: soldOutColor, fontSize: 10, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        color: soldOutColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600)),
               ),
             ],
           ),
@@ -627,17 +572,22 @@ class _SalesSubTabState extends State<_SalesSubTab> {
             Row(
               children: [
                 Text('Countdown',
-                    style: TextStyle(color: hintTextColor.withValues(alpha: 0.8), fontSize: 12)),
+                    style: TextStyle(
+                        color: hintTextColor.withValues(alpha: 0.8),
+                        fontSize: 12)),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFF2A2A3E),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(countdown,
                       style: const TextStyle(
-                          color: textColor, fontSize: 12, fontWeight: FontWeight.w600)),
+                          color: textColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -651,9 +601,12 @@ class _SalesSubTabState extends State<_SalesSubTab> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: hintTextColor.withValues(alpha: 0.8), fontSize: 12)),
+        Text(label,
+            style: TextStyle(
+                color: hintTextColor.withValues(alpha: 0.8), fontSize: 12)),
         Text(value,
-            style: const TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w600)),
+            style: const TextStyle(
+                color: textColor, fontSize: 12, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -671,7 +624,9 @@ class _DonutChartPainter extends CustomPainter {
     final strokeWidth = 50.0;
     final innerRadius = outerRadius - strokeWidth;
 
-    final data = segments.isEmpty ? <(double, String, String)>[(0.0, '0%', '-')] : segments;
+    final data = segments.isEmpty
+        ? <(double, String, String)>[(0.0, '0%', '-')]
+        : segments;
 
     double startAngle = -90 * (3.14159 / 180);
 
@@ -683,7 +638,7 @@ class _DonutChartPainter extends CustomPainter {
 
     // Create gradient
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    const gradient = SweepGradient(
+    final gradient = SweepGradient(
       colors: [
         Color(0xFF24014E),
         Color(0xFF52078C),
@@ -761,7 +716,8 @@ class _DonutChartPainter extends CustomPainter {
       );
 
       // Corner 2: rounded corner at end-outer (top-right)
-      path.quadraticBezierTo(c2x, c2y, c3x + (c2x - c3x) * 0.7, c3y + (c2y - c3y) * 0.7);
+      path.quadraticBezierTo(
+          c2x, c2y, c3x + (c2x - c3x) * 0.7, c3y + (c2y - c3y) * 0.7);
 
       // Side 2: Right edge from corner 2 to corner 3
       path.lineTo(c3x + (c2x - c3x) * 0.3, c3y + (c2y - c3y) * 0.3);
@@ -770,8 +726,10 @@ class _DonutChartPainter extends CustomPainter {
       path.quadraticBezierTo(
           c3x,
           c3y,
-          center.dx + innerRadius * cos(endAngle - (cornerRadius / innerRadius)),
-          center.dy + innerRadius * sin(endAngle - (cornerRadius / innerRadius)));
+          center.dx +
+              innerRadius * cos(endAngle - (cornerRadius / innerRadius)),
+          center.dy +
+              innerRadius * sin(endAngle - (cornerRadius / innerRadius)));
 
       // Side 3: Inner arc from corner 3 to corner 4 (with rounded corners)
       path.arcTo(
@@ -782,13 +740,17 @@ class _DonutChartPainter extends CustomPainter {
       );
 
       // Corner 4: rounded corner at start-inner (bottom-left)
-      path.quadraticBezierTo(c4x, c4y, c4x + (c1x - c4x) * 0.3, c4y + (c1y - c4y) * 0.3);
+      path.quadraticBezierTo(
+          c4x, c4y, c4x + (c1x - c4x) * 0.3, c4y + (c1y - c4y) * 0.3);
 
       // Side 4: Left edge from corner 4 to corner 1
       path.lineTo(c1x + (c4x - c1x) * 0.3, c1y + (c4y - c1y) * 0.3);
 
       // Corner 1: rounded corner at start-outer (top-left)
-      path.quadraticBezierTo(c1x, c1y, center.dx + outerRadius * cos(startAngle + startOffset),
+      path.quadraticBezierTo(
+          c1x,
+          c1y,
+          center.dx + outerRadius * cos(startAngle + startOffset),
           center.dy + outerRadius * sin(startAngle + startOffset));
 
       path.close();
@@ -816,7 +778,8 @@ class _DonutChartPainter extends CustomPainter {
       percentTextPainter.layout();
       percentTextPainter.paint(
         canvas,
-        Offset(textX - percentTextPainter.width / 2, textY - percentTextPainter.height - 1),
+        Offset(textX - percentTextPainter.width / 2,
+            textY - percentTextPainter.height - 1),
       );
 
       // Draw tier label
@@ -849,10 +812,12 @@ class _FinanceBreakdownSubTab extends StatefulWidget {
   final EventModel event;
   final VoidCallback? onViewAll;
 
-  const _FinanceBreakdownSubTab({Key? key, required this.event, this.onViewAll}) : super(key: key);
+  const _FinanceBreakdownSubTab({Key? key, required this.event, this.onViewAll})
+      : super(key: key);
 
   @override
-  State<_FinanceBreakdownSubTab> createState() => _FinanceBreakdownSubTabState();
+  State<_FinanceBreakdownSubTab> createState() =>
+      _FinanceBreakdownSubTabState();
 }
 
 class _FinanceBreakdownSubTabState extends State<_FinanceBreakdownSubTab> {
@@ -868,13 +833,16 @@ class _FinanceBreakdownSubTabState extends State<_FinanceBreakdownSubTab> {
 
   Future<void> _fetch() async {
     try {
-      final raw =
-          await AnalyticsService().getFinanceBreakdownRaw(widget.event.id, event: widget.event);
+      final raw = await AnalyticsService()
+          .getFinanceBreakdownRaw(widget.event.id, event: widget.event);
       setState(() {
-        _totalRevenue =
-            (raw['totalRevenue'] is num) ? (raw['totalRevenue'] as num).toDouble() : 0.0;
+        _totalRevenue = (raw['totalRevenue'] is num)
+            ? (raw['totalRevenue'] as num).toDouble()
+            : 0.0;
         _timeline = (raw['revenueTimeline'] as List<dynamic>? ?? [])
-            .map<double>((e) => (e is num) ? e.toDouble() : (double.tryParse(e.toString()) ?? 0.0))
+            .map<double>((e) => (e is num)
+                ? e.toDouble()
+                : (double.tryParse(e.toString()) ?? 0.0))
             .toList();
         _loading = false;
       });
@@ -891,28 +859,25 @@ class _FinanceBreakdownSubTabState extends State<_FinanceBreakdownSubTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: hintTextColor, strokeWidth: 2));
+      return const Center(
+          child:
+              CircularProgressIndicator(color: hintTextColor, strokeWidth: 2));
     }
     final bars = _timeline.isEmpty ? [0.0, 0.0, 0.0, 0.0, 0.0] : _timeline;
     final maxVal = bars.isEmpty ? 1.0 : bars.reduce((a, b) => a > b ? a : b);
     final safeMax = maxVal <= 0 ? 1.0 : maxVal;
-    final currency = widget.event.currency;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Total Revenue', style: TextStyle(color: hintTextColor, fontSize: 13)),
+          const Text('Total Revenue',
+              style: TextStyle(color: hintTextColor, fontSize: 13)),
           const SizedBox(height: 4),
-          Text(
-            '$currency ${_totalRevenue.toStringAsFixed(2)}',
-            style: const TextStyle(
-              color: textColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text('Rs. ${_totalRevenue.toStringAsFixed(2)}',
+              style: const TextStyle(
+                  color: textColor, fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
           Container(
             height: 250,
@@ -920,7 +885,8 @@ class _FinanceBreakdownSubTabState extends State<_FinanceBreakdownSubTab> {
             decoration: BoxDecoration(
               color: const Color(0xFF1A1A2E).withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+              border: Border.all(
+                  color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -937,7 +903,9 @@ class _FinanceBreakdownSubTabState extends State<_FinanceBreakdownSubTab> {
                           children: ['150k', '120k', '90k', '60k', '30k', '0']
                               .map((e) => Text(e,
                                   style: TextStyle(
-                                      color: hintTextColor.withValues(alpha: 0.7), fontSize: 10)))
+                                      color:
+                                          hintTextColor.withValues(alpha: 0.7),
+                                      fontSize: 10)))
                               .toList(),
                         ),
                       ),
@@ -948,7 +916,8 @@ class _FinanceBreakdownSubTabState extends State<_FinanceBreakdownSubTab> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             for (int i = 0; i < bars.length; i++) ...[
-                              _buildBar((bars[i] / safeMax) * 150.0, 'W${i + 1}')
+                              _buildBar(
+                                  (bars[i] / safeMax) * 150.0, 'W${i + 1}')
                             ]
                           ],
                         ),
@@ -964,15 +933,20 @@ class _FinanceBreakdownSubTabState extends State<_FinanceBreakdownSubTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Fund Withdrawals',
-                  style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: TextStyle(
+                      color: textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold)),
               TextButton(
                 onPressed: widget.onViewAll ?? () {},
-                child: const Text('View All', style: TextStyle(color: primaryColor, fontSize: 12)),
+                child: const Text('View All',
+                    style: TextStyle(color: primaryColor, fontSize: 12)),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          const Text('No withdrawals yet', style: TextStyle(color: hintTextColor, fontSize: 12)),
+          const Text('No withdrawals yet',
+              style: TextStyle(color: hintTextColor, fontSize: 12)),
         ],
       ),
     );
@@ -991,7 +965,9 @@ class _FinanceBreakdownSubTabState extends State<_FinanceBreakdownSubTab> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(label, style: TextStyle(color: hintTextColor.withValues(alpha: 0.8), fontSize: 10)),
+          Text(label,
+              style: TextStyle(
+                  color: hintTextColor.withValues(alpha: 0.8), fontSize: 10)),
         ],
       ),
     );
@@ -1033,6 +1009,21 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
     super.initState();
     _amountController.addListener(_updateAmounts);
     _fetchSummary();
+    _loadDefaultBank();
+  }
+
+  Future<void> _loadDefaultBank() async {
+    try {
+      final banks = await FinanceService().listBankDetails();
+      if (!mounted) return;
+      if (_selectedBank == null && banks.isNotEmpty) {
+        setState(() {
+          _selectedBank = banks.first;
+        });
+      }
+    } catch (_) {
+      // Ignore errors; user can still manually select a bank
+    }
   }
 
   void _updateAmounts() {
@@ -1064,8 +1055,8 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
 
   Future<void> _fetchSummary() async {
     try {
-      final breakdown =
-          await AnalyticsService().getFinanceBreakdownRaw(widget.event.id, event: widget.event);
+      final breakdown = await AnalyticsService()
+          .getFinanceBreakdownRaw(widget.event.id, event: widget.event);
       if (!mounted) return;
       setState(() {
         _availableFunds = (breakdown['availableFunds'] is num)
@@ -1152,9 +1143,9 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
                             ),
                           ),
                           const SizedBox(height: 5),
-                          const Opacity(
+                          Opacity(
                             opacity: 0.60,
-                            child: Text(
+                            child: const Text(
                               'Your available Funds',
                               style: TextStyle(
                                 color: Colors.white,
@@ -1198,9 +1189,9 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Opacity(
+                            Opacity(
                               opacity: 0.60,
-                              child: Text(
+                              child: const Text(
                                 'Total Revenue',
                                 style: TextStyle(
                                   color: Colors.white,
@@ -1259,9 +1250,9 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Opacity(
+                                  Opacity(
                                     opacity: 0.60,
-                                    child: Text(
+                                    child: const Text(
                                       'Realizing Balance',
                                       style: TextStyle(
                                         color: Colors.white,
@@ -1316,9 +1307,9 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Opacity(
+                                  Opacity(
                                     opacity: 0.60,
-                                    child: Text(
+                                    child: const Text(
                                       'Total Withdrawals',
                                       style: TextStyle(
                                         color: Colors.white,
@@ -1355,14 +1346,16 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
 
           // Bank details
           const Text('Bank Details',
-              style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: const Color(0xFF1A1A2E).withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+              border: Border.all(
+                  color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
             ),
             child: Row(
               children: [
@@ -1379,12 +1372,14 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
                             color: hintTextColor,
                             fontSize: 12,
                           )),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                           _selectedBank != null
-                              ? (_selectedBank!['accountNumber']?.toString() ?? '-')
+                              ? (_selectedBank!['accountNumber']?.toString() ??
+                                  '-')
                               : '-',
-                          style: const TextStyle(color: textColor, fontSize: 14)),
+                          style:
+                              const TextStyle(color: textColor, fontSize: 14)),
                     ],
                   ),
                 ),
@@ -1395,7 +1390,8 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
                     });
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color.fromARGB(225, 255, 255, 255),
                       borderRadius: BorderRadius.circular(12),
@@ -1422,7 +1418,8 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
           const SizedBox(height: 12),
 
           // Note field
-          CustomTextField(controller: _noteController, hintText: 'Note', maxLines: 2),
+          CustomTextField(
+              controller: _noteController, hintText: 'Note', maxLines: 2),
 
           const SizedBox(height: 20),
 
@@ -1560,22 +1557,26 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
                 minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () async {
                 final rawText = _amountController.text.trim();
-                final parsed = double.tryParse(rawText.replaceAll(RegExp(r'[^0-9\.]'), ''));
+                final parsed = double.tryParse(
+                    rawText.replaceAll(RegExp(r'[^0-9\.]'), ''));
                 if (parsed == null || parsed <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                        content: Text('Enter a valid amount'), backgroundColor: Colors.red),
+                        content: Text('Enter a valid amount'),
+                        backgroundColor: Colors.red),
                   );
                   return;
                 }
                 if (_selectedBank == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                        content: Text('Please select bank details'), backgroundColor: Colors.red),
+                        content: Text('Please select bank details'),
+                        backgroundColor: Colors.red),
                   );
                   return;
                 }
@@ -1585,10 +1586,14 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
                     amount: parsed,
                     bankDetails: {
                       'bankName': _selectedBank!['bankName']?.toString() ?? '',
-                      'accountNumber': _selectedBank!['accountNumber']?.toString() ?? '',
-                      'accountName': _selectedBank!['accountName']?.toString() ?? '',
+                      'accountNumber':
+                          _selectedBank!['accountNumber']?.toString() ?? '',
+                      'accountName':
+                          _selectedBank!['accountName']?.toString() ?? '',
                     },
-                    note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+                    note: _noteController.text.trim().isEmpty
+                        ? null
+                        : _noteController.text.trim(),
                   );
                   await _fetchSummary();
                   _amountController.clear();
@@ -1602,12 +1607,15 @@ class _WithdrawFundsSubTabState extends State<_WithdrawFundsSubTab> {
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Submit failed: $e'), backgroundColor: Colors.red),
+                    SnackBar(
+                        content: Text('Submit failed: $e'),
+                        backgroundColor: Colors.red),
                   );
                 }
               },
               child: const Text('Submit Withdraw Request',
-                  style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                  style:
+                      TextStyle(color: textColor, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
