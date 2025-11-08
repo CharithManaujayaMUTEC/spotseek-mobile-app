@@ -1,0 +1,74 @@
+[
+  {
+    "id": "1",
+    "name": "Summer Beats Festival",
+    "date": "Aug 25",
+    "startTime": "06:00PM",
+    "endTime": "11:00PM",
+    "venue": "Colombo City Hall Grounds",
+    "imageUrl": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800",
+    "status": "Fix Issues",
+    "statusType": "error",
+    "category": "active"
+  },
+  {
+    "id": "2",
+    "name": "Tech Innovators Meetup",
+    "date": "Sep 07",
+    "startTime": "10:00AM",
+    "endTime": "02:00PM",
+    "venue": "Hilton Ballroom, Colombo",
+    "imageUrl": "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800",
+    "status": "Pending Approval",
+    "statusType": "warning",
+    "category": "pending"
+  },
+  {
+    "id": "3",
+    "name": "Night Music Concert",
+    "date": "Oct 10",
+    "startTime": "08:00PM",
+    "endTime": "12:00AM",
+    "venue": "Beach Park Arena",
+    "imageUrl": "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800",
+    "status": "Active",
+    "statusType": "success",
+    "category": "active"
+  },
+  {
+    "id": "4",
+    "name": "Art & Culture Expo",
+    "date": "Oct 23",
+    "startTime": "09:00AM",
+    "endTime": "06:00PM",
+    "venue": "National Museum",
+    "imageUrl": "https://images.unsplash.com/photo-1513151233558-d860c5398176?w=800",
+    "status": "Active",
+    "statusType": "success",
+    "category": "active"
+  },
+  {
+    "id": "5",
+    "name": "Food Festival 2024",
+    "date": "Nov 15",
+    "startTime": "11:00AM",
+    "endTime": "09:00PM",
+    "venue": "Galle Face Green",
+    "imageUrl": "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800",
+    "status": "Pending Approval",
+    "statusType": "warning",
+    "category": "pending"
+  },
+  {
+    "id": "6",
+    "name": "Marathon Challenge",
+    "date": "Dec 01",
+    "startTime": "05:00AM",
+    "endTime": "10:00AM",
+    "venue": "Independence Square",
+    "imageUrl": "https://images.unsplash.com/photo-1452626038306-9aae5e071dd3?w=800",
+    "status": "Active",
+    "statusType": "success",
+    "category": "inactive"
+  }
+]

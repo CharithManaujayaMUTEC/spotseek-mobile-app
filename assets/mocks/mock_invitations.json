@@ -1,0 +1,89 @@
+{
+  "stats": {
+    "total": 230,
+    "spotseeker": 200,
+    "special": 30,
+    "spotseekerGeneral": 120,
+    "spotseekerVip": 60,
+    "spotseekerBackstage": 20,
+    "specialGeneral": 10,
+    "specialVip": 12,
+    "specialBackstage": 8
+  },
+  "single": [
+    {
+      "initial": "K",
+      "name": "User Name",
+      "phone": "0771234567",
+      "category": "General Invitation",
+      "type": "Spotseeker Invitation",
+      "deliveryStatus": "Delivered",
+      "deliveryBadge": "delivered",
+      "scanned": "1/2 Scanned",
+      "progress": "0.42",
+      "tickets": "2 Tickets"
+    },
+    {
+      "initial": "N",
+      "name": "Nadeesha Silva",
+      "phone": "0772345678",
+      "category": "VIP Invitation",
+      "type": "Special Invitation",
+      "deliveryStatus": "Delivery Failed",
+      "deliveryBadge": "failed",
+      "scanned": "0/4 Scanned",
+      "progress": "0.18",
+      "tickets": "4 Tickets"
+    },
+    {
+      "initial": "R",
+      "name": "Ravindu Fernando",
+      "phone": "0773456789",
+      "category": "Backstage Invitation",
+      "type": "Spotseeker Invitation",
+      "deliveryStatus": "Delivered",
+      "deliveryBadge": "delivered",
+      "scanned": "2/2 Scanned",
+      "progress": "0.90",
+      "tickets": "2 Tickets"
+    }
+  ],
+  "bulk": [
+    {
+      "initial": "B",
+      "name": "Bulk Batch 01",
+      "date": "2025.10.05   4.00pm",
+      "category": "VIP & General Invitation",
+      "type": "Spotseeker Invitation",
+      "tickets": "34 Tickets",
+      "scanned": "34/34 Scanned",
+      "progress": "0.95",
+      "deliveryStatus": "Delivered",
+      "deliveryBadge": "delivered"
+    },
+    {
+      "initial": "B",
+      "name": "Bulk Batch 02",
+      "date": "2025.10.05   4.00pm",
+      "category": "VIP Invitation",
+      "type": "Special Invitation",
+      "tickets": "34 Tickets",
+      "scanned": "34/34 Scanned",
+      "progress": "0.92",
+      "deliveryStatus": "Delivered",
+      "deliveryBadge": "delivered"
+    },
+    {
+      "initial": "B",
+      "name": "Bulk Batch 03",
+      "date": "2025.10.06   6.00pm",
+      "category": "General Invitation",
+      "type": "Special Invitation",
+      "tickets": "24 Tickets",
+      "scanned": "0/24 Scanned",
+      "progress": "0.05",
+      "deliveryStatus": "Delivery Failed",
+      "deliveryBadge": "failed"
+    }
+  ]
+}
