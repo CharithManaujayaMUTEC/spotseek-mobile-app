@@ -81,24 +81,15 @@ class _EditEventScreenState extends State<EditEventScreen> {
   void _onSave() {
     final updated = EventModel(
       id: widget.event.id,
-      uid: widget.event.uid,
       name: _nameController.text,
-      description: widget.event.description,
-      type: widget.event.type,
-      subType: _venueType,
-      organizer: widget.event.organizer,
-      managerName: widget.event.managerName,
-      startDate: widget.event.startDate,
-      endDate: widget.event.endDate,
+      date: widget.event.date,
+      startTime: widget.event.startTime,
+      endTime: widget.event.endTime,
+      venue: _venueController.text,
+      imageUrl: _imageUrl,
       status: widget.event.status,
-      thumbnailImg: _imageUrl,
-      bannerImg: widget.event.bannerImg,
-      featured: widget.event.featured,
-      venueName: _venueController.text,
-      venueLocationUrl: widget.event.venueLocationUrl,
-      freeSeating: widget.event.freeSeating,
-      currency: widget.event.currency,
-      ticketPackages: widget.event.ticketPackages,
+      statusType: widget.event.statusType,
+      category: widget.event.category,
     );
     Navigator.pop(context, updated);
   }

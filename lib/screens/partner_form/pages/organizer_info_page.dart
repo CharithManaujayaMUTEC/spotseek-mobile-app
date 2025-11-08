@@ -1,15 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:spotseeker_app/models/partner/partner_models.dart';
 import 'package:spotseeker_app/utils/colors.dart';
 
 enum IdType { nic, drivingLicense, passport }
 
 class OrganizerInfoPage extends StatefulWidget {
-  final Set<String>? editableFields;
-
-  const OrganizerInfoPage({super.key, this.editableFields});
+  const OrganizerInfoPage({super.key});
 
   @override
   State<OrganizerInfoPage> createState() => _OrganizerInfoPageState();
@@ -18,24 +13,6 @@ class OrganizerInfoPage extends StatefulWidget {
 class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
   IdType? _selectedIdType;
   bool _isDropdownExpanded = false;
-
-  // Controllers and files (no UI change)
-  final TextEditingController _organizerNameController =
-      TextEditingController();
-  final TextEditingController _organizerMobileController =
-      TextEditingController();
-  final TextEditingController _organizerAddressController =
-      TextEditingController();
-  final TextEditingController _organizerNicController = TextEditingController();
-
-  File? _idFrontFile;
-  File? _idBackFile;
-
-  bool _isEditable(String key) {
-    final fields = widget.editableFields;
-    if (fields == null) return true;
-    return fields.contains(key);
-  }
 
   InputDecoration _inputDecoration({required String hint}) {
     return InputDecoration(
@@ -46,13 +23,11 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
-        borderSide: BorderSide(
-            color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+        borderSide: BorderSide(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
-        borderSide: BorderSide(
-            color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+        borderSide: BorderSide(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
@@ -68,24 +43,14 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
       children: [
         const Text('Event Organizer Details',
             style: TextStyle(
-                color: textColor, fontSize: 20, fontWeight: FontWeight.bold)),
+                color: textColor,
+                fontSize: 20,
+                fontWeight: FontWeight.bold)),
         const SizedBox(height: 20),
-        _buildTextField(
-            hint: 'Name of the Event Organizer',
-            controller: _organizerNameController,
-            readOnly: !_isEditable('organizerName')),
-        _buildTextField(
-            hint: 'Mobile Number of the Event Organizer',
-            controller: _organizerMobileController,
-            readOnly: !_isEditable('organizerMobile')),
-        _buildTextField(
-            hint: 'Address of the Event Organizer',
-            controller: _organizerAddressController,
-            readOnly: !_isEditable('organizerAddress')),
-        _buildTextField(
-            hint: 'NIC Number of the Event Organizer',
-            controller: _organizerNicController,
-            readOnly: !_isEditable('organizerNic')),
+        _buildTextField(hint: 'Name of the Event Organizer'),
+        _buildTextField(hint: 'Mobile Number of the Event Organizer'),
+        _buildTextField(hint: 'Address of the Event Organizer'),
+        _buildTextField(hint: 'NIC Number of the Event Organizer'),
         _buildIdTypeDropdown(),
         const SizedBox(height: 16),
         AnimatedSwitcher(
@@ -124,20 +89,17 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
     return Column(
       children: [
         InkWell(
-          onTap: _isEditable('idType')
-              ? () {
-                  setState(() {
-                    _isDropdownExpanded = !_isDropdownExpanded;
-                  });
-                }
-              : null,
+          onTap: () {
+            setState(() {
+              _isDropdownExpanded = !_isDropdownExpanded;
+            });
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: const Color(0xFF1A1A2E).withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(8.0),
-              border: Border.all(
-                  color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+              border: Border.all(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -152,8 +114,7 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
                 AnimatedRotation(
                   turns: _isDropdownExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 300),
-                  child: const Icon(Icons.keyboard_arrow_down,
-                      color: hintTextColor),
+                  child: const Icon(Icons.keyboard_arrow_down, color: hintTextColor),
                 ),
               ],
             ),
@@ -163,9 +124,7 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
           height: _isDropdownExpanded ? 160 : 0,
-          margin: _isDropdownExpanded
-              ? const EdgeInsets.only(top: 2)
-              : EdgeInsets.zero,
+          margin: _isDropdownExpanded ? const EdgeInsets.only(top: 2) : EdgeInsets.zero,
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A2E).withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(8.0),
@@ -178,12 +137,9 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
             child: Column(
               children: [
                 _buildDropdownOption(text: 'NIC', value: IdType.nic),
-                const Divider(
-                    height: 1, color: hintTextColor, indent: 15, endIndent: 15),
-                _buildDropdownOption(
-                    text: 'Driving License', value: IdType.drivingLicense),
-                const Divider(
-                    height: 1, color: hintTextColor, indent: 15, endIndent: 15),
+                const Divider(height: 1, color: hintTextColor, indent: 15, endIndent: 15),
+                _buildDropdownOption(text: 'Driving License', value: IdType.drivingLicense),
+                const Divider(height: 1, color: hintTextColor, indent: 15, endIndent: 15),
                 _buildDropdownOption(text: 'Passport', value: IdType.passport),
               ],
             ),
@@ -195,21 +151,17 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
 
   Widget _buildDropdownOption({required String text, required IdType value}) {
     return InkWell(
-      onTap: _isEditable('idType')
-          ? () {
-              setState(() {
-                _selectedIdType = value;
-                _isDropdownExpanded = false;
-              });
-            }
-          : null,
+      onTap: () {
+        setState(() {
+          _selectedIdType = value;
+          _isDropdownExpanded = false;
+        });
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Expanded(
-                child: Text(text,
-                    style: const TextStyle(color: textColor, fontSize: 16))),
+            Expanded(child: Text(text, style: const TextStyle(color: textColor, fontSize: 16))),
           ],
         ),
       ),
@@ -227,38 +179,18 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
           key: const ValueKey('nic'),
           children: [
             // When in a row, we use Expanded to divide the space.
-            Expanded(
-                child: _buildFileUploadBox(
-                    title: 'NIC - Front',
-                    onTap: _isEditable('idFrontFile')
-                        ? () => _pickIdFile(isFront: true)
-                        : null)),
+            Expanded(child: _buildFileUploadBox(title: 'NIC - Front')),
             const SizedBox(width: 16),
-            Expanded(
-                child: _buildFileUploadBox(
-                    title: 'NIC - Back',
-                    onTap: _isEditable('idBackFile')
-                        ? () => _pickIdFile(isFront: false)
-                        : null)),
+            Expanded(child: _buildFileUploadBox(title: 'NIC - Back')),
           ],
         );
       case IdType.drivingLicense:
         return Row(
           key: const ValueKey('driving-license'),
           children: [
-            Expanded(
-                child: _buildFileUploadBox(
-                    title: 'Driving License - Front',
-                    onTap: _isEditable('idFrontFile')
-                        ? () => _pickIdFile(isFront: true)
-                        : null)),
+            Expanded(child: _buildFileUploadBox(title: 'Driving License - Front')),
             const SizedBox(width: 16),
-            Expanded(
-                child: _buildFileUploadBox(
-                    title: 'Driving License - Back',
-                    onTap: _isEditable('idBackFile')
-                        ? () => _pickIdFile(isFront: false)
-                        : null)),
+            Expanded(child: _buildFileUploadBox(title: 'Driving License - Back')),
           ],
         );
       case IdType.passport:
@@ -266,23 +198,15 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
         return _buildFileUploadBox(
           key: const ValueKey('passport'),
           title: 'Passport',
-          onTap: _isEditable('idFrontFile')
-              ? () => _pickIdFile(isFront: true)
-              : null,
         );
     }
   }
 
-  Widget _buildTextField(
-      {required String hint,
-      TextEditingController? controller,
-      bool readOnly = false}) {
+  Widget _buildTextField({required String hint}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: TextField(
         style: const TextStyle(color: textColor),
-        controller: controller,
-        readOnly: readOnly,
         decoration: _inputDecoration(hint: hint),
       ),
     );
@@ -290,97 +214,38 @@ class _OrganizerInfoPageState extends State<OrganizerInfoPage> {
 
   // --- THIS IS THE FIX ---
   // The builder method is simplified and now works in both standalone and Row contexts.
-  Widget _buildFileUploadBox(
-      {Key? key, required String title, VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        key: key,
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E).withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(8.0),
-          border: Border.all(
-              color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
-        ),
-        // By setting the crossAxisAlignment to stretch, the Column forces its
-        // children to be as wide as possible. This makes the Container fill the
-        // available width, whether it's the full screen or half the screen inside an Expanded.
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              // We must now explicitly center the text, since the column is stretching.
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: textColor, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            const Icon(Icons.cloud_upload_outlined,
-                color: hintTextColor, size: 30),
-            const SizedBox(height: 10),
-            const Text(
-              'Upload 1 supported file: PDF, document or image. Max 10 MB.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: hintTextColor, fontSize: 10),
-            ),
-          ],
-        ),
+  Widget _buildFileUploadBox({Key? key, required String title}) {
+    return Container(
+      key: key,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(color: Colors.deepPurple.shade300.withValues(alpha: 0.4)),
+      ),
+      // By setting the crossAxisAlignment to stretch, the Column forces its
+      // children to be as wide as possible. This makes the Container fill the
+      // available width, whether it's the full screen or half the screen inside an Expanded.
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            // We must now explicitly center the text, since the column is stretching.
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: textColor, fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          const Icon(Icons.cloud_upload_outlined, color: hintTextColor, size: 30),
+          const SizedBox(height: 10),
+          const Text(
+            'Upload 1 supported file: PDF, document or image. Max 10 MB.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: hintTextColor, fontSize: 10),
+          ),
+        ],
       ),
     );
   }
-
-  Future<void> _pickIdFile({required bool isFront}) async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
-      );
-      if (result != null && result.files.single.path != null) {
-        setState(() {
-          if (isFront) {
-            _idFrontFile = File(result.files.single.path!);
-          } else {
-            _idBackFile = File(result.files.single.path!);
-          }
-        });
-      }
-    } catch (_) {
-      // ignore
-    }
-  }
-
-  // Expose data to parent
-  OrganizerInfo? buildOrganizerInfoOrNull() {
-    if (_organizerNameController.text.trim().isEmpty ||
-        _organizerMobileController.text.trim().isEmpty ||
-        _organizerAddressController.text.trim().isEmpty ||
-        _organizerNicController.text.trim().isEmpty ||
-        _selectedIdType == null) {
-      return null;
-    }
-
-    final idTypeStr = () {
-      switch (_selectedIdType!) {
-        case IdType.nic:
-          return 'NIC';
-        case IdType.drivingLicense:
-          return 'DRIVING_LICENSE';
-        case IdType.passport:
-          return 'PASSPORT';
-      }
-    }();
-
-    return OrganizerInfo(
-      organizerName: _organizerNameController.text.trim(),
-      organizerMobile: _organizerMobileController.text.trim(),
-      organizerAddress: _organizerAddressController.text.trim(),
-      organizerNic: _organizerNicController.text.trim(),
-      idType: idTypeStr,
-    );
-  }
-
-  File? getIdFrontFile() => _idFrontFile;
-  File? getIdBackFile() => _idBackFile;
 }

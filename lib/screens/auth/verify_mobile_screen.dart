@@ -3,15 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:spotseeker_app/screens/auth/otp_screen.dart';
 import 'package:spotseeker_app/utils/colors.dart';
 import 'package:spotseeker_app/widgets/background_gradient.dart';
-import 'package:spotseeker_app/services/auth_service.dart';
 
 // 1. Define an enum for the phone number validation states
 enum PhoneValidationState { initial, valid, invalid }
 
 class VerifyMobileScreen extends StatefulWidget {
-  final String email;
-  
-  const VerifyMobileScreen({super.key, required this.email});
+  const VerifyMobileScreen({super.key});
 
   @override
   State<VerifyMobileScreen> createState() => _VerifyMobileScreenState();
@@ -20,9 +17,6 @@ class VerifyMobileScreen extends StatefulWidget {
 class _VerifyMobileScreenState extends State<VerifyMobileScreen> {
   final _phoneController = TextEditingController();
   var _validationState = PhoneValidationState.initial;
-  final _authService = AuthService();
-  bool _isSubmitting = false;
-  String? _errorMessage;
 
   @override
   void initState() {
@@ -74,96 +68,35 @@ class _VerifyMobileScreenState extends State<VerifyMobileScreen> {
     }
   }
 
-  // Convert 0719000492 to +94719000492
-  String _formatPhoneNumber(String phone) {
-    if (phone.startsWith('0')) {
-      return '+94${phone.substring(1)}';
-    }
-    return phone;
-  }
-
-  Future<void> _handleRequestOTP() async {
-    if (_validationState != PhoneValidationState.valid || _isSubmitting) return;
-
-    setState(() {
-      _isSubmitting = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final formattedPhone = _formatPhoneNumber(_phoneController.text.trim());
-      await _authService.partnerRegistrationStep2(
-        email: widget.email,
-        mobile: formattedPhone,
-      );
-      
-      if (mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => OtpScreen(
-              email: widget.email,
-              mobile: formattedPhone,
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_errorMessage!),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,
       body: Container(
         decoration: backgroundGradient(),
         child: SafeArea(
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
-              ),
-              child: IntrinsicHeight(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Spacer(flex: 2),
-                    SizedBox(
-                      width: 180,
-                      height: 60,
-                      child: Image.asset('assets/spotseeker_logo.png'),
-                    ),
-                    const SizedBox(height: 60),
-                    const Text(
-                      'Verify Your Mobile Number',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Spacer(flex: 2),
+                SizedBox(
+                  width: 180,
+                  height: 60,
+                  child: Image.asset('assets/spotseeker_logo.png'),
+                ),
+                const SizedBox(height: 60),
+                const Text(
+                  'Verify Your Mobile Number',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 const Text(
                   'Enter your mobile number to receive a one-time\npassword (OTP) for verification.',
                   textAlign: TextAlign.center,
@@ -207,38 +140,24 @@ class _VerifyMobileScreenState extends State<VerifyMobileScreen> {
                     disabledBackgroundColor: primaryColor.withValues(alpha: 0.5),
                   ),
                   // 5. Disable the button unless the phone number is valid
-                  onPressed: (_validationState == PhoneValidationState.valid && !_isSubmitting)
-                      ? _handleRequestOTP
+                  onPressed: _validationState == PhoneValidationState.valid
+                      ? () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (context) => const OtpScreen()),
+                          );
+                        }
                       : null,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: textColor,
-                          ),
-                        )
-                      : const Text(
-                          'Request OTP',
-                          style: TextStyle(
-                              color: textColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16),
-                        ),
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.red, fontSize: 14),
-                    textAlign: TextAlign.center,
+                  child: const Text(
+                    'Request OTP',
+                    style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16),
                   ),
-                ],
+                ),
                 const Spacer(flex: 3),
               ],
-            ),
-              ),
             ),
           ),
         ),

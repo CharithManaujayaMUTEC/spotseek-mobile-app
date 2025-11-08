@@ -1,15 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:spotseeker_app/screens/auth/verify_mobile_screen.dart';
-import 'package:spotseeker_app/screens/auth/login_screen.dart';
-import 'package:spotseeker_app/screens/status/request_approved_screen.dart';
-import 'package:spotseeker_app/screens/status/request_pending_screen.dart';
-import 'package:spotseeker_app/screens/status/request_declined_screen.dart';
 import 'package:spotseeker_app/utils/colors.dart';
-import 'package:spotseeker_app/services/auth_service.dart';
-import 'package:spotseeker_app/core/api/api_exception.dart';
-import 'package:spotseeker_app/core/storage/secure_storage.dart';
-import 'package:spotseeker_app/core/constants/api_constants.dart';
 
 enum EmailValidationState { initial, loading, valid, invalid }
 
@@ -25,10 +17,6 @@ class _BecomePartnerScreenState extends State<BecomePartnerScreen> {
   var _validationState = EmailValidationState.initial;
   Timer? _debounce;
   double _contentOpacity = 0.0;
-  final _authService = AuthService();
-  final _secureStorage = SecureStorage();
-  bool _isSubmitting = false;
-  String? _errorMessage;
 
   @override
   void initState() {
@@ -75,124 +63,6 @@ class _BecomePartnerScreenState extends State<BecomePartnerScreen> {
     }
   }
 
-  Future<void> _handleProceed() async {
-    if (_validationState != EmailValidationState.valid || _isSubmitting) return;
-
-    setState(() {
-      _isSubmitting = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final email = _emailController.text.trim();
-      
-      // Store email in secure storage for status checking
-      await _secureStorage.write(ApiConstants.userEmailKey, email);
-      print('💾 Stored email in secure storage: $email');
-      
-      // First, check if the user already has a partner application status
-      try {
-        final statusResponse = await _authService.checkPartnerBecomeStatus(email);
-        
-        // Navigate based on status
-        if (mounted) {
-          if (statusResponse.isApproved) {
-            // Status: APPROVED - Navigate to approved screen
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => const RequestApprovedScreen(),
-              ),
-            );
-            return;
-          } else if (statusResponse.isPending) {
-            // Status: PENDING_APPROVAL - Navigate to pending screen
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => const RequestPendingScreen(),
-              ),
-            );
-            return;
-          } else if (statusResponse.isRejected) {
-            // Status: REJECTED - Navigate to declined screen
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => const RequestDeclinedScreen(),
-              ),
-            );
-            return;
-          }
-        }
-      } catch (statusError) {
-        // If status check fails (e.g., 404 - no application found), continue with registration
-        print('Status check returned error (likely no existing application): $statusError');
-      }
-
-      // If no existing status or status check failed, proceed with new registration
-      await _authService.partnerRegistrationStep1(email);
-      
-      if (mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => VerifyMobileScreen(
-              email: email,
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        // Check if error indicates user already exists
-        final errorMessage = e.toString();
-        if (errorMessage.contains('already exists') || 
-            errorMessage.contains('already registered') ||
-            errorMessage.contains('User already exists')) {
-          // Show dialog suggesting login
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Account Already Exists'),
-              content: const Text('This email is already registered. Please login instead.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    );
-                  },
-                  child: const Text('Go to Login'),
-                ),
-              ],
-            ),
-          );
-        } else {
-          setState(() {
-            _errorMessage = e is ApiException ? e.message : e.toString();
-          });
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_errorMessage!),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -218,34 +88,29 @@ class _BecomePartnerScreenState extends State<BecomePartnerScreen> {
           Material(
             type: MaterialType.transparency,
             child: SafeArea(
-              child: SingleChildScrollView(
+              child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
-                  ),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Spacer(flex: 2),
-                        // The Logo Hero is now a sibling of the Panel Hero
-                        Hero(
-                          tag: 'spotseeker-logo',
-                          child: SizedBox(
-                            width: 180,
-                            height: 60,
-                            child: Image.asset('assets/spotseeker_logo.png'),
-                          ),
-                        ),
-                        const SizedBox(height: 60),
-                        AnimatedOpacity(
-                          opacity: _contentOpacity,
-                          duration: const Duration(milliseconds: 500),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Spacer(flex: 2),
+                    // The Logo Hero is now a sibling of the Panel Hero
+                    Hero(
+                      tag: 'spotseeker-logo',
+                      child: SizedBox(
+                        width: 180,
+                        height: 60,
+                        child: Image.asset('assets/spotseeker_logo.png'),
+                      ),
+                    ),
+                    const SizedBox(height: 60),
+                    AnimatedOpacity(
+                      opacity: _contentOpacity,
+                      duration: const Duration(milliseconds: 500),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                           const Text('Request Access!', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
                           const SizedBox(height: 12),
                           const Text('Bring innovation to your events partner with\nSpotseeker.lk today.', textAlign: TextAlign.center, style: TextStyle(color: hintTextColor, fontSize: 16)),
@@ -271,28 +136,11 @@ class _BecomePartnerScreenState extends State<BecomePartnerScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               disabledBackgroundColor: primaryColor.withValues(alpha: 0.5),
                             ),
-                            onPressed: (_validationState == EmailValidationState.valid && !_isSubmitting)
-                                ? _handleProceed
+                            onPressed: _validationState == EmailValidationState.valid
+                                ? () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const VerifyMobileScreen()))
                                 : null,
-                            child: _isSubmitting
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: textColor,
-                                    ),
-                                  )
-                                : const Text('Proceed', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                            child: const Text('Proceed', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
                           ),
-                          if (_errorMessage != null) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              _errorMessage!,
-                              style: const TextStyle(color: Colors.red, fontSize: 14),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -305,11 +153,7 @@ class _BecomePartnerScreenState extends State<BecomePartnerScreen> {
                         children: [
                           const Text("Already a Partner? ", style: TextStyle(color: hintTextColor)),
                           GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                              );
-                            },
+                            onTap: () { /* TODO: Navigate to Login */ },
                             child: const Text("Login", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
                           ),
                         ],
@@ -318,8 +162,6 @@ class _BecomePartnerScreenState extends State<BecomePartnerScreen> {
                     const SizedBox(height: 20),
                   ],
                 ),
-              ),
-            ),
               ),
             ),
           ),

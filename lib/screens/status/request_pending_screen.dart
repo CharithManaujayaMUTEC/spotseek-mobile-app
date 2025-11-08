@@ -1,100 +1,11 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:spotseeker_app/utils/colors.dart';
 import 'package:spotseeker_app/widgets/background_gradient.dart';
-import 'package:spotseeker_app/services/auth_service.dart';
-import 'package:spotseeker_app/core/storage/secure_storage.dart';
-import 'package:spotseeker_app/core/constants/api_constants.dart';
-import 'package:spotseeker_app/screens/status/request_approved_screen.dart';
-import 'package:spotseeker_app/screens/status/request_declined_screen.dart';
+// Note: For the exact WhatsApp icon, you might consider using a package like `font_awesome_flutter`.
+// For this example, we'll use a suitable built-in icon.
 
-class RequestPendingScreen extends StatefulWidget {
+class RequestPendingScreen extends StatelessWidget {
   const RequestPendingScreen({super.key});
-
-  @override
-  State<RequestPendingScreen> createState() => _RequestPendingScreenState();
-}
-
-class _RequestPendingScreenState extends State<RequestPendingScreen> {
-  Timer? _statusCheckTimer;
-  final _authService = AuthService();
-  final _secureStorage = SecureStorage();
-  bool _isChecking = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _startStatusPolling();
-  }
-
-  @override
-  void dispose() {
-    _statusCheckTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startStatusPolling() {
-    // Check immediately on screen load
-    _checkStatus();
-    
-    // Then check every 5 seconds
-    _statusCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      _checkStatus();
-    });
-  }
-
-  Future<void> _checkStatus() async {
-    if (_isChecking) return; // Prevent overlapping requests
-    
-    try {
-      setState(() => _isChecking = true);
-      
-      // Get user email from secure storage
-      final email = await _secureStorage.read(ApiConstants.userEmailKey);
-      
-      if (email == null || email.isEmpty) {
-        print('⚠️ No email found in storage for status check');
-        return;
-      }
-      
-      print('🔍 Checking partner become status for: $email');
-      
-      // Check status from API
-      final statusResponse = await _authService.checkPartnerBecomeStatus(email);
-      
-      print('📊 Status response: ${statusResponse.status}');
-      
-      if (!mounted) return;
-      
-      // Navigate based on status
-      if (statusResponse.isApproved) {
-        print('✅ Status APPROVED → Navigating to Approved Screen');
-        _statusCheckTimer?.cancel();
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const RequestApprovedScreen(),
-          ),
-        );
-      } else if (statusResponse.isRejected) {
-        print('❌ Status REJECTED → Navigating to Declined Screen');
-        _statusCheckTimer?.cancel();
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const RequestDeclinedScreen(),
-          ),
-        );
-      } else {
-        print('⏳ Status still PENDING');
-      }
-    } catch (e) {
-      print('❌ Error checking status: $e');
-      // Don't show error to user, just keep polling
-    } finally {
-      if (mounted) {
-        setState(() => _isChecking = false);
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,43 +42,9 @@ class _RequestPendingScreenState extends State<RequestPendingScreen> {
                 const Spacer(flex: 2), // Provides flexible space
 
                 // 3. The new animated pending icon is added here.
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/pending.gif',
-                      height: 80, // Set an appropriate height for the GIF
-                    ),
-                    if (_isChecking)
-                      Positioned(
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Checking...',
-                                style: TextStyle(color: Colors.white, fontSize: 10),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
+                Image.asset(
+                  'assets/pending.gif',
+                  height: 80, // Set an appropriate height for the GIF
                 ),
                 const SizedBox(height: 40),
 
@@ -186,16 +63,6 @@ class _RequestPendingScreenState extends State<RequestPendingScreen> {
                   'Your request to access Copilot is\nunder review.\nAccess credentials will be delivered to\nyour email once approved.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: hintTextColor, fontSize: 16, height: 1.5),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Checking status every 5 seconds...',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: hintTextColor,
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                  ),
                 ),
                 const Spacer(flex: 3), // Provides more space at the bottom
               ],

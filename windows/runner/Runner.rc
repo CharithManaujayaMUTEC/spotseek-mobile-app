@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "Copilot" "\0"
+            VALUE "FileDescription", "spotseeker_ui_build" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "Copilot" "\0"
+            VALUE "InternalName", "spotseeker_ui_build" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "Copilot.exe" "\0"
-            VALUE "ProductName", "Copilot" "\0"
+            VALUE "OriginalFilename", "spotseeker_ui_build.exe" "\0"
+            VALUE "ProductName", "spotseeker_ui_build" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

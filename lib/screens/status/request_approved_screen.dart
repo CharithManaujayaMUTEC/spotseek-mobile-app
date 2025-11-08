@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:spotseeker_app/screens/auth/login_screen.dart';
 import 'package:spotseeker_app/utils/colors.dart';
 import 'package:spotseeker_app/widgets/background_gradient.dart';
 
@@ -49,10 +48,7 @@ class RequestApprovedScreen extends StatelessWidget {
                   ),
                 ),
                 onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  );
+                  // TODO: Navigate to the actual Log In Screen
                 },
                 child: const Text(
                   'Log In Now',

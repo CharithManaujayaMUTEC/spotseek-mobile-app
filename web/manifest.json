@@ -1,6 +1,6 @@
 {
-    "name": "Copilot",
-    "short_name": "Copilot",
+    "name": "spotseeker_ui_build",
+    "short_name": "spotseeker_ui_build",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

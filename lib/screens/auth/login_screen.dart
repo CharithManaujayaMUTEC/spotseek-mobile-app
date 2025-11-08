@@ -3,9 +3,6 @@ import 'package:spotseeker_app/screens/auth/become_partner_screen.dart';
 import 'package:spotseeker_app/screens/partner_form/partner_form_screen.dart';
 import 'package:spotseeker_app/utils/colors.dart';
 import 'package:spotseeker_app/widgets/background_gradient.dart';
-import 'package:spotseeker_app/services/auth_service.dart';
-import 'package:spotseeker_app/screens/events/events_board_screen.dart';
-import 'package:spotseeker_app/services/partner_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,138 +12,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _rememberMe = false;
-  final _authService = AuthService();
-  final _partnerService = PartnerService();
-  bool _isLoggingIn = false;
-  String? _errorMessage;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  bool _isFormValid() {
-    return _emailController.text.trim().isNotEmpty &&
-        _passwordController.text.isNotEmpty;
-  }
-
-  Future<void> _handleLogin() async {
-    if (!_isFormValid() || _isLoggingIn) return;
-
-    setState(() {
-      _isLoggingIn = true;
-      _errorMessage = null;
-    });
-
-    try {
-      await _authService.login(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-
-      if (mounted) {
-        // After successful login, query application status to decide destination
-        try {
-          final status = await _partnerService.getApplicationStatus();
-          final step = status.partnerAgreement?.onboardingStep?.toLowerCase();
-          final bool isComplete = step == 'complete';
-
-          if (isComplete) {
-            print('✅ Onboarding complete → Navigating to Events');
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (context) => const EventsBoardScreen(),
-              ),
-              (route) => false,
-            );
-          } else {
-            print('🔹 Onboarding in-progress ($step) → Partner Form');
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (context) => const PartnerFormScreen(),
-              ),
-              (route) => false,
-            );
-          }
-        } catch (_) {
-          // Fallback: if status fetch fails, go to Partner Form
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-              builder: (context) => const PartnerFormScreen(),
-            ),
-            (route) => false,
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        String errorMessage;
-
-        // Extract meaningful error message
-        if (e.toString().contains('ApiException:')) {
-          errorMessage = e.toString().replaceAll('ApiException: ', '');
-        } else if (e.toString().contains('Exception:')) {
-          errorMessage = e.toString().replaceAll('Exception: ', '');
-        } else {
-          errorMessage = e.toString();
-        }
-
-        // Check for specific login scenarios
-        if (errorMessage.contains('BOTH_FAILED')) {
-          // Both APIs failed - navigate to Become Partner screen
-          print('❌ Both APIs failed → Navigating to Become Partner Screen');
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const BecomePartnerScreen(),
-            ),
-          );
-          return;
-        } else if (errorMessage.contains('MOBILE_ONLY_SUCCESS')) {
-          // Mobile succeeded but legacy failed - stay on login screen
-          print('⚠️ Mobile-only success → Staying on login screen');
-          setState(() {
-            _errorMessage =
-                'Legacy API authentication failed. Please contact support.';
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Legacy API authentication failed. Please contact support.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 5),
-            ),
-          );
-          return;
-        }
-
-        // For any other error, show the message and stay on login screen
-        setState(() {
-          _errorMessage = errorMessage;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoggingIn = false;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -195,23 +62,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 40),
                     TextField(
-                      controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       style: const TextStyle(color: textColor),
-                      decoration: InputDecoration(
-                        hintText: 'Email Address',
-                        hintStyle: const TextStyle(color: hintTextColor),
-                        filled: true,
-                        fillColor: Colors.black.withValues(alpha: 0.3),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                          borderSide: BorderSide.none,
-                        ),
+                    decoration: InputDecoration(
+                      hintText: 'Email Address',
+                      hintStyle: const TextStyle(color: hintTextColor),
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.3),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                        borderSide: BorderSide.none,
                       ),
+                    ),
                     ),
                     const SizedBox(height: 20),
                     TextField(
-                      controller: _passwordController,
                       obscureText: !_isPasswordVisible,
                       style: const TextStyle(color: textColor),
                       decoration: InputDecoration(
@@ -271,37 +136,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        disabledBackgroundColor:
-                            primaryColor.withValues(alpha: 0.5),
                       ),
-                      onPressed: (_isFormValid() && !_isLoggingIn)
-                          ? _handleLogin
-                          : null,
-                      child: _isLoggingIn
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: textColor,
-                              ),
-                            )
-                          : const Text(
-                              'Access Copilot',
-                              style: TextStyle(
-                                  color: textColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16),
-                            ),
+                      onPressed: () {
+                        // TODO: Handle Login Logic
+                        Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (context) => const PartnerFormScreen()),
+                            );
+                      },
+                      child: const Text(
+                        'Access Copilot',
+                        style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16),
+                      ),
                     ),
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 14),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
                     const Spacer(flex: 3),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -313,15 +163,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             // Navigate to the Become a Partner screen
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                  builder: (context) =>
-                                      const BecomePartnerScreen()),
+                                  builder: (context) => const BecomePartnerScreen()),
                             );
                           },
                           child: const Text(
                             "Apply",
                             style: TextStyle(
-                                color: primaryColor,
-                                fontWeight: FontWeight.bold),
+                                color: primaryColor, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],

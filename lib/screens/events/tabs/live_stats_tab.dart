@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:spotseeker_app/models/event_model.dart';
 import 'package:spotseeker_app/utils/colors.dart';
-import 'package:spotseeker_app/services/analytics_service.dart';
-import 'package:spotseeker_app/models/analytics/analytics_models.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class LiveStatsTab extends StatefulWidget {
@@ -16,21 +14,6 @@ class LiveStatsTab extends StatefulWidget {
 
 class _LiveStatsTabState extends State<LiveStatsTab> {
   int _selectedPackage = 0;
-  LiveStats? _liveStats;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetch();
-  }
-
-  Future<void> _fetch() async {
-    try {
-      final live = await AnalyticsService()
-          .getLiveStats(widget.event.id, event: widget.event);
-      if (mounted) setState(() => _liveStats = live);
-    } catch (_) {}
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,28 +32,28 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            'Total attendees : ${_liveStats?.liveAttendance ?? 0}',
-            style: const TextStyle(
+          const Text(
+            'Total attendees : 1450',
+            style: TextStyle(
               color: hintTextColor,
               fontSize: 13,
             ),
           ),
           const SizedBox(height: 16),
-
+          
           // Bubble Chart
           _buildBubbleChart(),
-
+          
           const SizedBox(height: 20),
-
+          
           // Attendance Cards
           Row(
             children: [
               Expanded(
                 child: _buildAttendanceCard(
                   'Total Attendees',
-                  'Inside: ${_liveStats?.currentCheckIns ?? 0}',
-                  'To Come: ${(_liveStats != null) ? ((_liveStats!.liveAttendance - _liveStats!.currentCheckIns).clamp(0, 1 << 31)) : 0}',
+                  'Inside: 1216',
+                  'To Come: 234',
                   const Color(0xFF00FF00),
                   const Color(0xFFFFFF00),
                 ),
@@ -79,8 +62,8 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
               Expanded(
                 child: _buildAttendanceCard(
                   'Online Tickets',
-                  'Inside: ${_liveStats?.currentCheckIns ?? 0}',
-                  'To Come: ${(_liveStats != null) ? ((_liveStats!.liveAttendance - _liveStats!.currentCheckIns).clamp(0, 1 << 31)) : 0}',
+                  'Inside: 856',
+                  'To Come: 144',
                   const Color(0xFF00FF00),
                   const Color(0xFFFFFF00),
                 ),
@@ -93,8 +76,8 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
               Expanded(
                 child: _buildAttendanceCard(
                   'Spotseeker Invites',
-                  'Inside: ${_liveStats?.currentCheckIns ?? 0}',
-                  'To Come: ${(_liveStats != null) ? ((_liveStats!.liveAttendance - _liveStats!.currentCheckIns).clamp(0, 1 << 31)) : 0}',
+                  'Inside: 320',
+                  'To Come: 80',
                   const Color(0xFF00FF00),
                   const Color(0xFFFFFF00),
                 ),
@@ -103,17 +86,17 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
               Expanded(
                 child: _buildAttendanceCard(
                   'Special Invites',
-                  'Inside: ${_liveStats?.currentCheckIns ?? 0}',
-                  'To Come: ${(_liveStats != null) ? ((_liveStats!.liveAttendance - _liveStats!.currentCheckIns).clamp(0, 1 << 31)) : 0}  ',
+                  'Inside: 40',
+                  'To Come: 10',
                   const Color(0xFF00FF00),
                   const Color(0xFFFFFF00),
                 ),
               ),
             ],
           ),
-
+          
           const SizedBox(height: 24),
-
+          
           // Attendance by Ticket Package
           const Text(
             'Attendance by Ticket Package',
@@ -124,30 +107,30 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
             ),
           ),
           const SizedBox(height: 12),
-
+          
           // Package Tabs
           _buildPackageTabs(),
-
+          
           const SizedBox(height: 16),
-
+          
           // Package Details
           _buildPackageDetails(),
-
+          
           const SizedBox(height: 24),
-
+          
           // Live Scan Insights
           _buildScanInsights(),
-
+          
           const SizedBox(height: 24),
-
+          
           // Fraudulent Scan Alerts
           _buildFraudulentAlerts(),
-
+          
           const SizedBox(height: 24),
-
+          
           // Audience by Gender
           _buildAudienceDemographics(),
-
+          
           const SizedBox(height: 24),
         ],
       ),
@@ -177,15 +160,13 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
           Positioned(
             right: 30,
             top: 30,
-            child: _buildBubble(
-                '400\nSpotseeker\nInvites', 90, const Color(0xFF8B0000)),
+            child: _buildBubble('400\nSpotseeker\nInvites', 90, const Color(0xFF8B0000)),
           ),
           // Special Invites
           Positioned(
             left: 110,
             bottom: 20,
-            child: _buildBubble(
-                '50\nSpecial\nInvites', 60, const Color(0xFF600000)),
+            child: _buildBubble('50\nSpecial\nInvites', 60, const Color(0xFF600000)),
           ),
         ],
       ),
@@ -294,7 +275,7 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
 
   Widget _buildPackageTabs() {
     final packages = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'];
-
+    
     return SizedBox(
       height: 40,
       child: ListView.builder(
@@ -311,17 +292,12 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
                 });
               },
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? textColor
-                      : backgroundColor.withValues(alpha: 0.3),
+                  color: isSelected ? textColor : backgroundColor.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isSelected
-                        ? textColor
-                        : hintTextColor.withValues(alpha: 0.3),
+                    color: isSelected ? textColor : hintTextColor.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Center(
@@ -400,16 +376,16 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
             ),
           ),
           const SizedBox(height: 16),
-          const Row(
+          Row(
             children: [
-              Icon(Icons.circle, color: Color(0xFF00FF00), size: 12),
-              SizedBox(width: 8),
-              Text(
+              const Icon(Icons.circle, color: Color(0xFF00FF00), size: 12),
+              const SizedBox(width: 8),
+              const Text(
                 'Inside',
                 style: TextStyle(color: textColor, fontSize: 13),
               ),
-              Spacer(),
-              Text(
+              const Spacer(),
+              const Text(
                 '120',
                 style: TextStyle(
                   color: textColor,
@@ -420,16 +396,16 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
             ],
           ),
           const SizedBox(height: 8),
-          const Row(
+          Row(
             children: [
-              Icon(Icons.circle, color: Color(0xFFFFFF00), size: 12),
-              SizedBox(width: 8),
-              Text(
+              const Icon(Icons.circle, color: Color(0xFFFFFF00), size: 12),
+              const SizedBox(width: 8),
+              const Text(
                 'To Come',
                 style: TextStyle(color: textColor, fontSize: 13),
               ),
-              Spacer(),
-              Text(
+              const Spacer(),
+              const Text(
                 '95',
                 style: TextStyle(
                   color: textColor,
@@ -468,16 +444,16 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
                   color: Colors.deepPurple.shade300.withValues(alpha: 0.4),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Text(
+                  const Text(
                     'All packages',
                     style: TextStyle(
                       color: textColor,
                       fontSize: 12,
                     ),
                   ),
-                  SizedBox(width: 4),
+                  const SizedBox(width: 4),
                   Icon(
                     Icons.keyboard_arrow_down,
                     color: textColor,
@@ -620,22 +596,19 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
         _buildAlertCard(
           icon: '☑️',
           title: 'Multiple Entry Attempt-10',
-          description:
-              '10 tickets tried re-entry after already scanned (Normal Attendees)',
+          description: '10 tickets tried re-entry after already scanned (Normal Attendees)',
         ),
         const SizedBox(height: 12),
         _buildAlertCard(
           icon: '📱',
           title: 'Fake QR Pattern Detected-03',
-          description:
-              '3 suspicious QR codes don\'t match issued ticket format (Potential Forgery)',
+          description: '3 suspicious QR codes don\'t match issued ticket format (Potential Forgery)',
         ),
         const SizedBox(height: 12),
         _buildAlertCard(
           icon: '🔍',
           title: 'Suspicious Device Activity-03',
-          description:
-              '3 suspicious QR scans detected from the same device within 1 minute (Tier 2)',
+          description: '3 suspicious QR scans detected from the same device within 1 minute (Tier 2)',
         ),
       ],
     );
@@ -726,13 +699,7 @@ class _LiveStatsTabState extends State<LiveStatsTab> {
                         sideTitles: SideTitles(
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
-                            final ages = [
-                              '18-25',
-                              '26-35',
-                              '36-45',
-                              '46-55',
-                              '56+'
-                            ];
+                            final ages = ['18-25', '26-35', '36-45', '46-55', '56+'];
                             return Text(
                               ages[value.toInt()],
                               style: TextStyle(
